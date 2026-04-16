@@ -1,0 +1,151 @@
+"""
+Agent API Routes - FastAPI endpoints for the agent
+"""
+
+from fastapi import APIRouter, HTTPException, Depends
+from pydantic import BaseModel
+from typing import Optional, List, Dict, Any
+import uuid
+
+from ..agent.main import HCPAgent
+from ..agent.llm_manager import get_llm_manager, GroqLLMManager
+from ..agent.memory import get_memory
+from ..config import settings
+
+router = APIRouter(prefix="/api/agent", tags=["agent"])
+
+
+class ChatRequest(BaseModel):
+    message: str
+    session_id: Optional[str] = None
+    user_id: Optional[str] = None
+
+
+class ChatResponse(BaseModel):
+    message: str
+    intent: str
+    entities: Dict[str, Any]
+    session_id: str
+    success: bool
+    error: Optional[str] = None
+
+
+class HistoryResponse(BaseModel):
+    messages: List[Dict[str, Any]]
+    count: int
+
+
+class SessionCreateResponse(BaseModel):
+    session_id: str
+    user_id: str
+
+
+# Singleton agent instance
+_agent_instance: Optional[HCPAgent] = None
+
+
+def get_agent() -> HCPAgent:
+    """Get or create agent instance"""
+    global _agent_instance
+    if _agent_instance is None:
+        llm = get_llm_manager()
+        _agent_instance = HCPAgent(llm)
+    return _agent_instance
+
+
+@router.post("/chat", response_model=ChatResponse)
+async def chat(request: ChatRequest):
+    """Process a chat message"""
+    agent = get_agent()
+
+    # Use provided session_id or create new one
+    session_id = request.session_id or str(uuid.uuid4())
+    user_id = request.user_id or "default"
+
+    # Check if session exists, if not create it
+    memory = get_memory()
+    session = memory.get_session(session_id)
+    if not session:
+        session = memory.create_session(user_id)
+        session_id = session.session_id
+
+    try:
+        result = agent.process(
+            user_input=request.message, session_id=session_id, user_id=user_id
+        )
+
+        return ChatResponse(
+            message=result.message,
+            intent=result.intent,
+            entities=result.entities,
+            session_id=session_id,
+            success=result.success,
+            error=result.error,
+        )
+
+    except Exception as e:
+        return ChatResponse(
+            message="I encountered an error processing your request.",
+            intent="error",
+            entities={},
+            session_id=session_id,
+            success=False,
+            error=str(e),
+        )
+
+
+@router.get("/history/{session_id}", response_model=HistoryResponse)
+async def get_history(session_id: str, limit: int = 20):
+    """Get conversation history for a session"""
+    memory = get_memory()
+    history = memory.get_history(session_id, limit)
+
+    return HistoryResponse(messages=history, count=len(history))
+
+
+@router.post("/session", response_model=SessionCreateResponse)
+async def create_session(user_id: str = "default"):
+    """Create a new session"""
+    memory = get_memory()
+    session = memory.create_session(user_id)
+
+    return SessionCreateResponse(session_id=session.session_id, user_id=session.user_id)
+
+
+@router.delete("/session/{session_id}")
+async def clear_session(session_id: str):
+    """Clear a session"""
+    memory = get_memory()
+    memory.clear(session_id)
+
+    return {"success": True, "message": "Session cleared"}
+
+
+@router.get("/health")
+async def health_check():
+    """Check agent health"""
+    try:
+        agent = get_agent()
+        # Try to get available models
+        models = agent.llm.list_models()
+        return {
+            "status": "healthy",
+            "provider": settings.LLM_PROVIDER,
+            "models_available": len(models),
+        }
+    except Exception as e:
+        return {"status": "unhealthy", "error": str(e)}
+
+
+@router.get("/models")
+async def list_models():
+    """List available models"""
+    try:
+        agent = get_agent()
+        models = agent.llm.list_models()
+        return {
+            "models": [{"id": m.id, "provider": m.provider} for m in models],
+            "count": len(models),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

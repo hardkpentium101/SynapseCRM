@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 
 from src.db.database import init_db
 from src.api.routes import auth, hcps, interactions, materials, samples, follow_ups
+from src.api.routes import agent
 
 
 @asynccontextmanager
@@ -15,7 +16,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="HCP CRM API",
     description="AI-Powered CRM for Healthcare Professional Interactions",
-    version="1.0.0",
+    version="2.0.0",
     lifespan=lifespan,
 )
 
@@ -33,11 +34,12 @@ app.include_router(interactions.router, prefix="/api")
 app.include_router(materials.router, prefix="/api")
 app.include_router(samples.router, prefix="/api")
 app.include_router(follow_ups.router, prefix="/api")
+app.include_router(agent.router)
 
 
 @app.get("/")
 async def root():
-    return {"message": "HCP CRM API", "version": "1.0.0"}
+    return {"message": "HCP CRM API", "version": "2.0.0"}
 
 
 @app.get("/health")
