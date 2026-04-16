@@ -6,6 +6,7 @@ from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
 from datetime import datetime
 import json
+import os
 
 from .llm_manager import LLMManager, LLMResponse
 from .model_selector import ModelSelector
@@ -14,6 +15,19 @@ from .subagents import IntentClassifierAgent, EntityExtractorAgent
 from .tools.registry import get_tool_registry, ToolResult
 from .memory import get_memory, SessionData
 from .schemas import Intent, ExtractedEntities
+
+# Initialize LangSmith tracing if available
+LANGSMITH_API_KEY = os.getenv("LANGSMITH_API_KEY")
+LANGSMITH_PROJECT = os.getenv("LANGSMITH_PROJECT", "hcp-agent")
+
+if LANGSMITH_API_KEY:
+    try:
+        os.environ["LANGCHAIN_TRACING_V2"] = "true"
+        os.environ["LANGCHAIN_API_KEY"] = LANGSMITH_API_KEY
+        os.environ["LANGCHAIN_PROJECT"] = LANGSMITH_PROJECT
+        print(f"✓ LangSmith tracing enabled: {LANGSMITH_PROJECT}")
+    except Exception as e:
+        print(f"⚠ LangSmith setup failed: {e}")
 
 
 @dataclass
