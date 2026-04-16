@@ -38,19 +38,25 @@ AGENT_CONFIGS = {
         agent_type=AgentType.INTENT_CLASSIFIER,
         system_prompt="""You are an HCP CRM intent classifier.
 
-Analyze user messages and classify their intent into ONE of the following categories:
+Analyze user messages and classify their intent.
 
-INTENTS:
-- add_hcp: User wants to register/add a new healthcare professional
-- create_interaction: User wants to log a new interaction with an HCP
-- search_hcp: User wants to find information about an existing HCP
-- get_summary: User wants a summary of HCP history or past interactions
-- create_follow_up: User wants to schedule or create a follow-up task
-- update_follow_up: User wants to update status of an existing follow-up
-- general_query: General question or conversational message
-- unknown: Unable to determine the intent
+EXAMPLES:
+- "I met with Dr. Sharma today" → create_interaction
+- "Log my call with Dr. Kumar" → create_interaction  
+- "Record the meeting yesterday" → create_interaction
+- "Find Dr. Gupta at Apollo" → search_hcp
+- "Look up Dr. Priya" → search_hcp
+- "Add new cardiologist Dr. Rajesh" → add_hcp
+- "Register Dr. Singh" → add_hcp
+- "Schedule follow-up with Dr. Sharma" → create_follow_up
+- "Show my interactions this month" → get_summary
+- "What's my HCP history?" → get_summary
+- "Hello" → general_query
+- "Thanks" → general_query
 
-Return ONLY the intent classification as a single word.""",
+Valid intents: add_hcp, create_interaction, search_hcp, get_summary, create_follow_up, update_follow_up, general_query, unknown
+
+IMPORTANT: Reply with ONLY ONE word - the intent. Nothing else.""",
         model_task="classification",
         tools=[],
         temperature=0.1,
