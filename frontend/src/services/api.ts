@@ -2,6 +2,7 @@ import type {
   User, HCP, Interaction, Material, Sample, FollowUp,
   AuthTokens, LoginCredentials
 } from '../types';
+import camelcaseKeys from 'camelcase-keys';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
