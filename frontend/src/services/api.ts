@@ -39,19 +39,20 @@ class ApiService {
       throw new Error(error.detail || 'An error occurred');
     }
 
-    return response.json();
+    const data = await response.json();
+    return this.toCamelCase(data) as T;
   }
 
   // Auth
   async login(credentials: LoginCredentials): Promise<{ user: User; tokens: AuthTokens }> {
-    const response = await this.request<{ user: User; access_token: string; refresh_token: string }>(
+    const response = await this.request<{ user: User; accessToken: string; refreshToken: string }>(
       '/auth/login',
       { method: 'POST', body: JSON.stringify(credentials) }
     );
-    this.token = response.access_token;
+    this.token = response.accessToken;
     return {
       user: response.user || { id: '', email: credentials.email, name: '', role: 'rep' },
-      tokens: { accessToken: response.access_token, refreshToken: response.refresh_token }
+      tokens: { accessToken: response.accessToken, refreshToken: response.refreshToken }
     };
   }
 
@@ -124,24 +125,20 @@ class ApiService {
     return result;
   }
 
-  private toCamelCase(obj: Record<string, unknown>): Record<string, unknown> {
-    const result: Record<string, unknown> = {};
-    for (const key in obj) {
-      const camelKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
-      const value = (obj as Record<string, unknown>)[key];
-      if (Array.isArray(value)) {
-        result[camelKey] = value.map(item =>
-          typeof item === 'object' && item !== null
-            ? this.toCamelCase(item as Record<string, unknown>)
-            : item
-        );
-      } else if (typeof value === 'object' && value !== null) {
-        result[camelKey] = this.toCamelCase(value as Record<string, unknown>);
-      } else {
-        result[camelKey] = value;
-      }
+  private toCamelCase(data: unknown): unknown {
+    if (Array.isArray(data)) {
+      return data.map(item => this.toCamelCase(item));
     }
-    return result;
+    if (typeof data === 'object' && data !== null) {
+      const result: Record<string, unknown> = {};
+      for (const key in data as Record<string, unknown>) {
+        const camelKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+        const value = (data as Record<string, unknown>)[key];
+        result[camelKey] = this.toCamelCase(value);
+      }
+      return result;
+    }
+    return data;
   }
 
   async deleteInteraction(id: string): Promise<void> {
