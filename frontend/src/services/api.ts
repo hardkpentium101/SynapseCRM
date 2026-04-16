@@ -1,0 +1,198 @@
+import type {
+  User, HCP, Interaction, Material, Sample, FollowUp,
+  AuthTokens, LoginCredentials
+} from '../types';
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+
+class ApiService {
+  private token: string | null = null;
+
+  setToken(token: string | null) {
+    this.token = token;
+  }
+
+  private async request<T>(
+    endpoint: string,
+    options: RequestInit = {}
+  ): Promise<T> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    if (this.token) {
+      headers['Authorization'] = `Bearer ${this.token}`;
+    }
+    
+    if (options.headers) {
+      const customHeaders = options.headers as Record<string, string>;
+      Object.assign(headers, customHeaders);
+    }
+
+    const response = await fetch(`${API_BASE}${endpoint}`, {
+      ...options,
+      headers,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'An error occurred' }));
+      throw new Error(error.detail || 'An error occurred');
+    }
+
+    return response.json();
+  }
+
+  // Auth
+  async login(credentials: LoginCredentials): Promise<{ user: User; tokens: AuthTokens }> {
+    const response = await this.request<{ user: User; access_token: string; refresh_token: string }>(
+      '/auth/login',
+      { method: 'POST', body: JSON.stringify(credentials) }
+    );
+    this.token = response.access_token;
+    return {
+      user: response.user || { id: '', email: credentials.email, name: '', role: 'rep' },
+      tokens: { accessToken: response.access_token, refreshToken: response.refresh_token }
+    };
+  }
+
+  async getMe(): Promise<User> {
+    return this.request<User>('/auth/me');
+  }
+
+  // HCPs
+  async getHcps(search?: string): Promise<HCP[]> {
+    const params = search ? `?search=${encodeURIComponent(search)}` : '';
+    return this.request<HCP[]>(`/hcps${params}`);
+  }
+
+  async getHcp(id: string): Promise<HCP> {
+    return this.request<HCP>(`/hcps/${id}`);
+  }
+
+  async createHcp(data: Partial<HCP>): Promise<HCP> {
+    return this.request<HCP>('/hcps', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async updateHcp(id: string, data: Partial<HCP>): Promise<HCP> {
+    return this.request<HCP>(`/hcps/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  async deleteHcp(id: string): Promise<void> {
+    return this.request<void>(`/hcps/${id}`, { method: 'DELETE' });
+  }
+
+  // Interactions
+  async getInteractions(filters?: { hcpId?: string; userId?: string }): Promise<Interaction[]> {
+    const params = new URLSearchParams();
+    if (filters?.hcpId) params.set('hcp_id', filters.hcpId);
+    if (filters?.userId) params.set('user_id', filters.userId);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return this.request<Interaction[]>(`/interactions${query}`);
+  }
+
+  async getInteraction(id: string): Promise<Interaction> {
+    return this.request<Interaction>(`/interactions/${id}`);
+  }
+
+  async createInteraction(data: Partial<Interaction>): Promise<Interaction> {
+    const snakeData = this.toSnakeCase(data);
+    return this.request<Interaction>('/interactions', { method: 'POST', body: JSON.stringify(snakeData) });
+  }
+
+  async updateInteraction(id: string, data: Partial<Interaction>): Promise<Interaction> {
+    const snakeData = this.toSnakeCase(data);
+    return this.request<Interaction>(`/interactions/${id}`, { method: 'PUT', body: JSON.stringify(snakeData) });
+  }
+
+  private toSnakeCase(obj: Record<string, unknown>): Record<string, unknown> {
+    const result: Record<string, unknown> = {};
+    for (const key in obj) {
+      const snakeKey = key.replace(/([A-Z])/g, '_$1').toLowerCase();
+      const value = obj[key];
+      if (Array.isArray(value)) {
+        result[snakeKey] = value.map(item => 
+          typeof item === 'object' && item !== null 
+            ? this.toSnakeCase(item as Record<string, unknown>) 
+            : item
+        );
+      } else if (typeof value === 'object' && value !== null) {
+        result[snakeKey] = this.toSnakeCase(value as Record<string, unknown>);
+      } else {
+        result[snakeKey] = value;
+      }
+    }
+    return result;
+  }
+
+  private toCamelCase(obj: Record<string, unknown>): Record<string, unknown> {
+    const result: Record<string, unknown> = {};
+    for (const key in obj) {
+      const camelKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+      const value = (obj as Record<string, unknown>)[key];
+      if (Array.isArray(value)) {
+        result[camelKey] = value.map(item =>
+          typeof item === 'object' && item !== null
+            ? this.toCamelCase(item as Record<string, unknown>)
+            : item
+        );
+      } else if (typeof value === 'object' && value !== null) {
+        result[camelKey] = this.toCamelCase(value as Record<string, unknown>);
+      } else {
+        result[camelKey] = value;
+      }
+    }
+    return result;
+  }
+
+  async deleteInteraction(id: string): Promise<void> {
+    return this.request<void>(`/interactions/${id}`, { method: 'DELETE' });
+  }
+
+  // Materials
+  async getMaterials(search?: string): Promise<Material[]> {
+    const params = search ? `?search=${encodeURIComponent(search)}` : '';
+    return this.request<Material[]>(`/materials${params}`);
+  }
+
+  async getMaterial(id: string): Promise<Material> {
+    return this.request<Material>(`/materials/${id}`);
+  }
+
+  async createMaterial(data: Partial<Material>): Promise<Material> {
+    return this.request<Material>('/materials', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  // Samples
+  async getSamples(interactionId?: string): Promise<Sample[]> {
+    const params = interactionId ? `?interaction_id=${interactionId}` : '';
+    return this.request<Sample[]>(`/samples${params}`);
+  }
+
+  async createSample(data: Partial<Sample>): Promise<Sample> {
+    return this.request<Sample>('/samples', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async deleteSample(id: string): Promise<void> {
+    return this.request<void>(`/samples/${id}`, { method: 'DELETE' });
+  }
+
+  // Follow-ups
+  async getFollowUps(interactionId?: string): Promise<FollowUp[]> {
+    const params = interactionId ? `?interaction_id=${interactionId}` : '';
+    return this.request<FollowUp[]>(`/follow-ups${params}`);
+  }
+
+  async createFollowUp(data: Partial<FollowUp>): Promise<FollowUp> {
+    return this.request<FollowUp>('/follow-ups', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async updateFollowUp(id: string, data: Partial<FollowUp>): Promise<FollowUp> {
+    return this.request<FollowUp>(`/follow-ups/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  async deleteFollowUp(id: string): Promise<void> {
+    return this.request<void>(`/follow-ups/${id}`, { method: 'DELETE' });
+  }
+}
+
+export const api = new ApiService();
