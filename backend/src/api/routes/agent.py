@@ -3,14 +3,20 @@ Agent API Routes - FastAPI endpoints for the agent
 """
 
 from fastapi import APIRouter, HTTPException, Depends
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import uuid
 
-from ..agent.main import HCPAgent
-from ..agent.llm_manager import get_llm_manager, GroqLLMManager
-from ..agent.memory import get_memory
-from ..config import settings
+from ...agent.main import HCPAgent
+from ...agent.llm_manager import get_llm_manager, GroqLLMManager
+from ...agent.memory import get_memory
+from ...agent.langgraph import (
+    get_graph_definition,
+    get_flow_diagram_mermaid,
+    get_flow_diagram_ascii,
+)
+from ...config import settings
 
 router = APIRouter(prefix="/api/agent", tags=["agent"])
 
@@ -149,3 +155,21 @@ async def list_models():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/graph")
+async def get_graph():
+    """Get the agent graph definition for visualization"""
+    return get_graph_definition()
+
+
+@router.get("/graph/mermaid", response_class=PlainTextResponse)
+async def get_graph_mermaid():
+    """Get the agent graph as Mermaid diagram"""
+    return get_flow_diagram_mermaid()
+
+
+@router.get("/graph/ascii")
+async def get_graph_ascii():
+    """Get the agent graph as ASCII diagram"""
+    return {"diagram": get_flow_diagram_ascii()}
