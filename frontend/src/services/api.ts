@@ -41,7 +41,7 @@ class ApiService {
     }
 
     const data = await response.json();
-    return this.toCamelCase(data) as T;
+    return camelcaseKeys(data, { deep: true }) as T;
   }
 
   // Auth
@@ -124,22 +124,6 @@ class ApiService {
       }
     }
     return result;
-  }
-
-  private toCamelCase(data: unknown): unknown {
-    if (Array.isArray(data)) {
-      return data.map(item => this.toCamelCase(item));
-    }
-    if (typeof data === 'object' && data !== null) {
-      const result: Record<string, unknown> = {};
-      for (const key in data as Record<string, unknown>) {
-        const camelKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
-        const value = (data as Record<string, unknown>)[key];
-        result[camelKey] = this.toCamelCase(value);
-      }
-      return result;
-    }
-    return data;
   }
 
   async deleteInteraction(id: string): Promise<void> {
