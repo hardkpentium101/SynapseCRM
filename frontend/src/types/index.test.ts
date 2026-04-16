@@ -9,7 +9,7 @@ import type {
   UserRole,
   Sentiment,
   InteractionType,
-} from '../index'
+} from './index'
 
 describe('types', () => {
   describe('User', () => {

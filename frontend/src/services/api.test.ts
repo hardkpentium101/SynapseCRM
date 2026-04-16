@@ -1,10 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { api } from './api'
+import type { InteractionType } from '../types'
 
-global.fetch = vi.fn()
+globalThis.fetch = vi.fn()
 
 describe('api service', () => {
-  const mockFetch = global.fetch as ReturnType<typeof vi.fn>
+  const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -118,7 +119,7 @@ describe('api service', () => {
     it('should create interaction', async () => {
       const newInteraction = {
         hcpId: 'hcp-1',
-        type: 'meeting',
+        type: 'meeting' as InteractionType,
         dateTime: '2025-04-16T10:00:00',
         attendees: [],
         topics: 'Test topic',

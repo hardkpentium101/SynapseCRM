@@ -12,7 +12,7 @@ import interactionsReducer, {
   resetForm,
   clearDirty,
 } from '../../features/interactions/interactionsSlice'
-import type { Interaction } from '../../types'
+import type { Interaction, InteractionType } from '../../types'
 
 describe('interactionsSlice', () => {
   let store: ReturnType<typeof configureStore>
@@ -224,7 +224,7 @@ describe('interactionsSlice', () => {
             items: [],
             activeId: null,
             activeInteraction: null,
-            formData: { type: 'meeting', dateTime: '', attendees: [], topics: 'dirty', sentiment: undefined, outcome: '' },
+            formData: { type: 'meeting' as InteractionType, dateTime: '', attendees: [], topics: 'dirty', sentiment: undefined, outcome: '' },
             dirty: true,
             loading: false,
             saving: false,

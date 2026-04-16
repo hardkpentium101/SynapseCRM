@@ -170,19 +170,15 @@ export function InteractionForm() {
     setSaving(true);
     try {
       const interactionData = {
-        hcp_id: formData.hcpId,
+        hcpId: formData.hcpId,
         type: formData.type || 'meeting',
-        date_time: formData.dateTime,
+        dateTime: formData.dateTime,
         topics: formData.topics,
         sentiment: formData.sentiment,
         outcome: formData.outcome,
         attendees: formData.attendees || [],
-        material_ids: formData.materials?.map(m => m.id) || [],
-        samples: formData.samples?.map(s => ({
-          product_name: s.productName,
-          lot_number: s.lotNumber,
-          quantity: s.quantity,
-        })) || [],
+        materials: formData.materials,
+        samples: formData.samples,
       };
       
       await dispatch(createInteraction(interactionData)).unwrap();

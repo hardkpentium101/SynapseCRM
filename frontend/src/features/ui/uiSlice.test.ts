@@ -7,9 +7,10 @@ import uiReducer, {
   removeNotification,
   toggleSidebar,
 } from '../../features/ui/uiSlice'
+import type { RootState } from '../../app/store'
 
 describe('uiSlice', () => {
-  let store: ReturnType<typeof configureStore>
+  let store: ReturnType<typeof configureStore<{ ui: RootState }>>
 
   beforeEach(() => {
     store = configureStore({
