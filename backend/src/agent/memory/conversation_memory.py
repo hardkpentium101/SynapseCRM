@@ -98,7 +98,7 @@ class ConversationMemory:
             return []
 
         messages = session.messages[-limit:]
-        return [msg.to_dict() for msg in messages]
+        return [{"role": msg.role, "content": msg.content} for msg in messages]
 
     def set_entities(self, session_id: str, entities: ExtractedEntities):
         """Update extracted entities"""
