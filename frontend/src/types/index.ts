@@ -97,3 +97,18 @@ export interface LoginCredentials {
   email: string;
   password: string;
 }
+
+export interface ChatMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+}
+
+export interface ChatResponse {
+  message: string;
+  intent: string;
+  entities: Record<string, unknown>;
+  sessionId: string;
+  success: boolean;
+  error?: string;
+  interaction?: Interaction;
+}

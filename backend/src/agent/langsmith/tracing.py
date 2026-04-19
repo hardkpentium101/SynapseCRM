@@ -6,7 +6,7 @@ import os
 from typing import Optional, Dict, Any
 from functools import wraps
 
-from ..config import settings
+import os
 
 
 def setup_langsmith():

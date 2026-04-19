@@ -16,10 +16,30 @@ class ModelSelection:
     is_fallback: bool = False
 
 
+# Models that support chat completions (exclude whisper, embeddings, etc.)
+CHAT_MODELS = {
+    "llama-3.1-8b-instant",
+    "llama-3.1-70b-versatile",
+    "llama-3.1-405b-reasoning",
+    "llama3-groq-70b-8192-tool-use-preview",
+    "llama3-groq-8b-8192-tool-use-preview",
+    "llama3-70b-8192",
+    "llama3-8b-8192",
+    "mixtral-8x7b-32768",
+    "gemma-7b-it",
+    "gemma2-9b-it",
+}
+
+# Models that explicitly support tool calling (function calling)
+TOOL_CALL_MODELS = {
+    "llama3-groq-70b-8192-tool-use-preview",
+    "llama3-groq-8b-8192-tool-use-preview",
+}
+
+
 class ModelSelector:
     """Selects best model based on task requirements"""
 
-    # Default models per task type
     DEFAULT_MODELS = {
         "classification": {
             "primary": "llama-3.1-8b-instant",
@@ -30,7 +50,7 @@ class ModelSelector:
             "fallback": "mixtral-8x7b-32768",
         },
         "tool_use": {
-            "primary": "llama3-groq-70b-8192-tool-use-preview",
+            "primary": "llama-3.3-70b-versatile",
             "fallback": "llama-3.1-70b-versatile",
         },
         "general": {
@@ -43,7 +63,32 @@ class ModelSelector:
         self.llm = llm_manager
         self._selections: Dict[str, ModelSelection] = {}
         self._available_models: Optional[List[Model]] = None
+        self._chat_models: Optional[List[Model]] = None
         self._initialized = False
+
+    def _is_chat_model(self, model_id: str) -> bool:
+        """Check if model supports chat completions"""
+        model_lower = model_id.lower()
+        # Check known non-chat models (guard, whisper, embeddings, tts, etc.)
+        exclude_patterns = [
+            "whisper",
+            "embed",
+            "tts",
+            "speech",
+            "vision",
+            "image",
+            "prompt-guard",
+            "safeguard",
+            "oss-20b",
+            "qwen",
+        ]
+        for pattern in exclude_patterns:
+            if pattern in model_lower:
+                return False
+        # Check known chat models
+        if model_id in CHAT_MODELS:
+            return True
+        return True
 
     def initialize(self):
         """Fetch available models and pre-select optimal ones"""
@@ -51,28 +96,37 @@ class ModelSelector:
             return
 
         self._available_models = self.llm.list_models()
-        available_ids = {m.id for m in self._available_models}
+        self._chat_models = [
+            m for m in self._available_models if self._is_chat_model(m.id)
+        ]
+        chat_model_ids = {m.id for m in self._chat_models}
 
         for task, models in self.DEFAULT_MODELS.items():
             primary = models["primary"]
             fallback = models["fallback"]
 
-            # Check if primary is available
-            if primary in available_ids:
+            if primary in chat_model_ids:
                 self._selections[task] = ModelSelection(
                     model_id=primary,
-                    latency=0,  # Don't measure, trust Groq's speed
+                    latency=0,
                     is_fallback=False,
                 )
-            elif fallback in available_ids:
+            elif fallback in chat_model_ids:
                 self._selections[task] = ModelSelection(
                     model_id=fallback, latency=0, is_fallback=True
                 )
             else:
-                # Use first available model as fallback
-                if self._available_models:
+                # Use first available chat model as fallback
+                if self._chat_models:
                     self._selections[task] = ModelSelection(
-                        model_id=self._available_models[0].id,
+                        model_id=self._chat_models[0].id,
+                        latency=0,
+                        is_fallback=True,
+                    )
+                else:
+                    # Ultimate fallback
+                    self._selections[task] = ModelSelection(
+                        model_id="llama-3.1-8b-instant",
                         latency=0,
                         is_fallback=True,
                     )
@@ -87,7 +141,6 @@ class ModelSelector:
         if task_type in self._selections:
             return self._selections[task_type].model_id
 
-        # Default to general
         return self._selections.get(
             "general", ModelSelection(model_id="llama-3.1-8b-instant", latency=0)
         ).model_id
@@ -110,7 +163,7 @@ class ModelSelector:
             try:
                 latency = self.llm.ping(model)
                 results[model] = latency
-            except Exception as e:
+            except Exception:
                 results[model] = float("inf")
         return results
 
@@ -119,6 +172,12 @@ class ModelSelector:
         if not self._available_models:
             self._available_models = self.llm.list_models()
         return self._available_models
+
+    def get_chat_models(self) -> List[Model]:
+        """Get only chat-capable models"""
+        if not self._chat_models:
+            self.initialize()
+        return self._chat_models
 
     def get_model_info(self, model_id: str) -> Optional[Model]:
         """Get info about a specific model"""

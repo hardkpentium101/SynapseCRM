@@ -11,9 +11,102 @@ from .llm_manager import LLMManager, LLMResponse
 from .model_selector import ModelSelector
 
 
+# ============================================================================
+# PROMPT CONSTANTS - Extracted from code for maintainability
+# ============================================================================
+
+INTENT_CLASSIFIER_PROMPT = """You are an HCP CRM intent classifier.
+
+Analyze user messages and classify their intent.
+
+EXAMPLES:
+- "I met with Dr. Sharma today" → create_interaction
+- "Log my call with Dr. Kumar" → create_interaction  
+- "Record the meeting yesterday" → create_interaction
+- "Find Dr. Gupta at Apollo" → search_hcp
+- "Look up Dr. Priya" → search_hcp
+- "Update the follow-up to call Dr. Sharma" → update_interaction
+- "Schedule follow-up with Dr. Sharma" → create_follow_up
+- "Show my interactions this month" → get_summary
+- "What's my HCP history?" → get_summary
+- "Hello" → general_query
+- "Thanks" → general_query
+
+Valid intents: add_hcp, create_interaction, search_hcp, get_summary, create_follow_up, update_follow_up, update_interaction, general_query, unknown
+
+IMPORTANT: Reply with ONLY ONE word - the intent. Nothing else."""
+
+ENTITY_EXTRACTOR_PROMPT = """You are an HCP CRM entity extractor.
+
+Extract structured information from user messages. Return a JSON object with:
+
+- hcp_name: Name of the healthcare professional (if mentioned)
+- hcp_specialty: Medical specialty (if mentioned, e.g., "oncology", "cardiology")
+- hcp_institution: Hospital or clinic name (if mentioned)
+- hcp_id: Internal ID (if known from context, leave empty if unknown)
+- interaction_type: Type of interaction ("meeting", "call", "email", "conference", or null)
+- date_time: When interaction occurred/scheduled (ISO format or null if not mentioned)
+- sentiment: Emotional tone ("positive", "neutral", "negative", or null)
+- topics: List of discussion topics mentioned
+- attendees: List of other people mentioned (or empty array)
+- follow_up_type: Type of follow-up if mentioned ("call", "meeting", "email", or null)
+- follow_up_due: Follow-up due date if mentioned (ISO format or null)
+
+Return JSON with null for fields not mentioned."""
+
+ENTITY_VALIDATOR_PROMPT = """You are an HCP CRM entity validator.
+
+Your task is to validate extracted entities against database results and resolve ambiguities.
+
+Input:
+- Extracted entities from user message (may be incomplete or vague)
+- Search results from database (may have 0, 1, or multiple matches)
+
+Your job:
+1. If single match found → confirm the entity with resolved ID
+2. If multiple matches found → ask user to clarify which one
+3. If no match found → suggest adding new HCP or check spelling
+4. If partial match (name matches but institution doesn't) → verify with user
+
+EXAMPLES:
+- User: "Dr. Sharma at Mayo" → DB: ["Dr. Priya Sharma at Mayo", "Dr. Raj Sharma at Johns Hopkins"] → ASK: "Which Dr. Sharma? There are multiple."
+- User: "Dr. Priya with oncology" → DB: ["Dr. Priya Sharma (Oncology)"] → CONFIRM: entity with hcp_id
+- User: "Dr. Unknown Doctor" → DB: [] → SUGGEST: "No matching HCP found. Would you like to add them?"
+
+Output as JSON:
+- validated: true/false
+- hcp_id: resolved ID if found
+- hcp_name: confirmed name
+- confirmation_needed: true/false (if multiple matches)
+- clarification_options: list of options if needed
+- suggestion: text suggestion if no match
+
+Be concise. Ask for clarification only when truly ambiguous."""
+
+
+# ============================================================================
+# ENTITY SCHEMA - Dynamic schema derived from model
+# ============================================================================
+
+ENTITY_SCHEMA = {
+    "hcp_name": None,
+    "hcp_specialty": None,
+    "hcp_institution": None,
+    "hcp_id": None,
+    "interaction_type": None,
+    "date_time": None,
+    "sentiment": None,
+    "topics": [],
+    "attendees": [],
+    "follow_up_type": None,
+    "follow_up_due": None,
+}
+
+
 class AgentType(Enum):
     INTENT_CLASSIFIER = "intent_classifier"
     ENTITY_EXTRACTOR = "entity_extractor"
+    ENTITY_VALIDATOR = "entity_validator"
     ORCHESTRATOR = "orchestrator"
 
 
@@ -36,27 +129,7 @@ AGENT_CONFIGS = {
     "intent_classifier": AgentConfig(
         name="Intent Classifier",
         agent_type=AgentType.INTENT_CLASSIFIER,
-        system_prompt="""You are an HCP CRM intent classifier.
-
-Analyze user messages and classify their intent.
-
-EXAMPLES:
-- "I met with Dr. Sharma today" → create_interaction
-- "Log my call with Dr. Kumar" → create_interaction  
-- "Record the meeting yesterday" → create_interaction
-- "Find Dr. Gupta at Apollo" → search_hcp
-- "Look up Dr. Priya" → search_hcp
-- "Add new cardiologist Dr. Rajesh" → add_hcp
-- "Register Dr. Singh" → add_hcp
-- "Schedule follow-up with Dr. Sharma" → create_follow_up
-- "Show my interactions this month" → get_summary
-- "What's my HCP history?" → get_summary
-- "Hello" → general_query
-- "Thanks" → general_query
-
-Valid intents: add_hcp, create_interaction, search_hcp, get_summary, create_follow_up, update_follow_up, general_query, unknown
-
-IMPORTANT: Reply with ONLY ONE word - the intent. Nothing else.""",
+        system_prompt=INTENT_CLASSIFIER_PROMPT,
         model_task="classification",
         tools=[],
         temperature=0.1,
@@ -66,28 +139,22 @@ IMPORTANT: Reply with ONLY ONE word - the intent. Nothing else.""",
     "entity_extractor": AgentConfig(
         name="Entity Extractor",
         agent_type=AgentType.ENTITY_EXTRACTOR,
-        system_prompt="""You are an HCP CRM entity extractor.
-
-Extract structured information from user messages. Return a JSON object with:
-
-- hcp_name: Name of the healthcare professional (if mentioned)
-- hcp_specialty: Medical specialty (if mentioned, e.g., "oncology", "cardiology")
-- hcp_institution: Hospital or clinic name (if mentioned)
-- hcp_id: Internal ID (if known from context, leave empty if unknown)
-- interaction_type: Type of interaction ("meeting", "call", "email", "conference", or null)
-- date_time: When interaction occurred/scheduled (ISO format or null if not mentioned)
-- sentiment: Emotional tone ("positive", "neutral", "negative", or null)
-- topics: List of discussion topics mentioned
-- attendees: List of other people mentioned (or empty array)
-- follow_up_type: Type of follow-up if mentioned ("call", "meeting", "email", or null)
-- follow_up_due: Follow-up due date if mentioned (ISO format or null)
-
-Return JSON with null for fields not mentioned.""",
+        system_prompt=ENTITY_EXTRACTOR_PROMPT,
         model_task="extraction",
-        tools=["search_hcp"],  # Can search to resolve ambiguous HCP names
+        tools=["search_hcp"],
         temperature=0.2,
         max_tokens=512,
         description="Extracts structured entities from messages",
+    ),
+    "entity_validator": AgentConfig(
+        name="Entity Validator",
+        agent_type=AgentType.ENTITY_VALIDATOR,
+        system_prompt=ENTITY_VALIDATOR_PROMPT,
+        model_task="validation",
+        tools=["search_hcp", "get_hcp_by_id", "create_hcp"],
+        temperature=0.1,
+        max_tokens=512,
+        description="Validates extracted entities against DB results",
     ),
     "orchestrator": AgentConfig(
         name="HCP Agent Orchestrator",
@@ -109,6 +176,7 @@ When creating interactions, gather all required information.""",
             "search_hcp",
             "get_hcp_by_id",
             "create_interaction",
+            "update_interaction",
             "get_interactions",
             "create_follow_up",
             "get_follow_ups",
@@ -138,6 +206,21 @@ class BaseAgent(ABC):
         self.model_selector = model_selector
         self.tool_registry = tool_registry or {}
 
+    _context_formatters: Dict[str, Dict[str, Any]] = {
+        "conversation_history": {
+            "mode": "extend",
+            "template": "{0}",
+        },
+        "entities": {
+            "mode": "append",
+            "template": "Previous extracted entities: {0}",
+        },
+        "intent": {
+            "mode": "append",
+            "template": "User intent: {0}",
+        },
+    }
+
     def _get_model(self) -> str:
         """Get the model for this agent based on task type"""
         return self.model_selector.select(self.config.model_task)
@@ -148,25 +231,17 @@ class BaseAgent(ABC):
         """Build message list with system prompt and context"""
         messages = [{"role": "system", "content": self.config.system_prompt}]
 
-        # Add context if provided
         if context:
-            if "conversation_history" in context:
-                messages.extend(
-                    context["conversation_history"][-10:]
-                )  # Last 10 messages
+            for key, config in self._context_formatters.items():
+                if key not in context:
+                    continue
 
-            if "entities" in context:
-                messages.append(
-                    {
-                        "role": "system",
-                        "content": f"Previous extracted entities: {context['entities']}",
-                    }
-                )
-
-            if "intent" in context:
-                messages.append(
-                    {"role": "system", "content": f"User intent: {context['intent']}"}
-                )
+                value = context[key]
+                if config["mode"] == "extend":
+                    messages.extend(value[-10:])
+                else:
+                    content = config["template"].format(value)
+                    messages.append({"role": "system", "content": content})
 
         messages.append({"role": "user", "content": user_input})
         return messages

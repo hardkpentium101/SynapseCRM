@@ -11,6 +11,7 @@ import uuid
 from ...agent.main import HCPAgent
 from ...agent.llm_manager import get_llm_manager, GroqLLMManager
 from ...agent.memory import get_memory
+from ...agent.langsmith import setup_langsmith
 from ...agent.langgraph import (
     get_graph_definition,
     get_flow_diagram_mermaid,
@@ -34,6 +35,7 @@ class ChatResponse(BaseModel):
     session_id: str
     success: bool
     error: Optional[str] = None
+    interaction: Optional[Dict[str, Any]] = None
 
 
 class HistoryResponse(BaseModel):
@@ -54,6 +56,7 @@ def get_agent() -> HCPAgent:
     """Get or create agent instance"""
     global _agent_instance
     if _agent_instance is None:
+        setup_langsmith()
         llm = get_llm_manager()
         _agent_instance = HCPAgent(llm)
     return _agent_instance
@@ -80,6 +83,12 @@ async def chat(request: ChatRequest):
             user_input=request.message, session_id=session_id, user_id=user_id
         )
 
+        interaction_data = None
+        if result.tool_results:
+            for tr in result.tool_results:
+                if tr.get("tool_name") == "create_interaction" and tr.get("success"):
+                    interaction_data = tr.get("data")
+
         return ChatResponse(
             message=result.message,
             intent=result.intent,
@@ -87,6 +96,7 @@ async def chat(request: ChatRequest):
             session_id=session_id,
             success=result.success,
             error=result.error,
+            interaction=interaction_data,
         )
 
     except Exception as e:

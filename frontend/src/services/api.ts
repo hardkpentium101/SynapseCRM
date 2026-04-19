@@ -175,6 +175,34 @@ class ApiService {
   async deleteFollowUp(id: string): Promise<void> {
     return this.request<void>(`/follow-ups/${id}`, { method: 'DELETE' });
   }
+
+  // Chat
+  async chat(message: string, sessionId?: string, userId?: string): Promise<{
+    message: string;
+    intent: string;
+    entities: Record<string, unknown>;
+    session_id: string;
+    success: boolean;
+    error?: string;
+    interaction?: Interaction;
+  }> {
+    return this.request<{
+      message: string;
+      intent: string;
+      entities: Record<string, unknown>;
+      session_id: string;
+      success: boolean;
+      error?: string;
+      interaction?: Interaction;
+    }>('/agent/chat', {
+      method: 'POST',
+      body: JSON.stringify({ message, session_id: sessionId, user_id: userId }),
+    });
+  }
+
+  async getChatHistory(sessionId: string, limit = 20): Promise<{ messages: unknown[]; count: number }> {
+    return this.request<{ messages: unknown[]; count: number }>(`/agent/history/${sessionId}?limit=${limit}`);
+  }
 }
 
 export const api = new ApiService();
