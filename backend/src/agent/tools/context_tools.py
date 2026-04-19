@@ -80,7 +80,6 @@ def _get_conversation_history(limit: int = 10) -> Dict[str, Any]:
             {
                 "role": msg["role"],
                 "content": msg["content"],
-                "timestamp": msg.get("timestamp", ""),
             }
             for msg in history
         ],
