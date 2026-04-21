@@ -115,10 +115,19 @@ class GroqLLMManager(LLMManager):
 
         if choice.message.tool_calls:
             for tc in choice.message.tool_calls:
-                tool_calls.append(
-                    ToolCall(
-                        name=tc.function.name, arguments=tc.function.arguments, id=tc.id
+                import json
+
+                try:
+                    args = (
+                        json.loads(tc.function.arguments)
+                        if isinstance(tc.function.arguments, str)
+                        else tc.function.arguments
                     )
+                except json.JSONDecodeError:
+                    args = {"raw": tc.function.arguments}
+
+                tool_calls.append(
+                    ToolCall(name=tc.function.name, arguments=args, id=tc.id)
                 )
 
         return LLMResponse(

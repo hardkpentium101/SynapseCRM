@@ -25,7 +25,7 @@ class EntityExtractorAgent(BaseAgent):
         messages.append(
             {
                 "role": "system",
-                "content": 'Return ONLY valid JSON matching this schema: {"hcp_name":null,"hcp_specialty":null,"hcp_institution":null,"hcp_id":null,"interaction_type":null,"date_time":null,"sentiment":null,"topics":[],"attendees":[],"follow_up_type":null,"follow_up_due":null}',
+                "content": 'Return ONLY valid JSON matching this schema: {"hcp_name":null,"hcp_specialty":null,"hcp_institution":null,"hcp_id":null,"interaction_type":null,"date_time":null,"sentiment":null,"topics":[],"attendees":[],"materials":[],"follow_up_type":null,"follow_up_due":null}',
             }
         )
 

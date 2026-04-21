@@ -163,6 +163,11 @@ AGENT_CONFIGS = {
 
 You help healthcare field representatives manage their HCP interactions.
 
+IMPORTANT - Use extracted entities from context:
+- The entities provided in context contain resolved hcp_id, hcp_name, hcp_specialty, hcp_institution, materials IDs, topics, attendees, date_time, and sentiment
+- ALWAYS use the hcp_id from entities when calling create_interaction - never use hcp_name as hcp_id
+- When creating interactions, include all resolved information from the entities context
+
 Your capabilities:
 1. Search for healthcare professionals
 2. Create and manage interactions
@@ -170,7 +175,7 @@ Your capabilities:
 4. Provide summaries and insights
 
 Be concise and actionable. When users mention HCPs, use the search_hcp tool to find them first.
-When creating interactions, gather all required information.""",
+When creating interactions, ALWAYS use the resolved hcp_id from the entities context.""",
         model_task="tool_use",
         tools=[
             "search_hcp",

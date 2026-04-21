@@ -177,7 +177,7 @@ class ApiService {
   }
 
   // Chat
-  async chat(message: string, sessionId?: string, userId?: string): Promise<{
+  async chat(message: string, sessionId?: string, userId?: string, formData?: Record<string, unknown>): Promise<{
     message: string;
     intent: string;
     entities: Record<string, unknown>;
@@ -196,7 +196,7 @@ class ApiService {
       interaction?: Interaction;
     }>('/agent/chat', {
       method: 'POST',
-      body: JSON.stringify({ message, session_id: sessionId, user_id: userId }),
+      body: JSON.stringify({ message, session_id: sessionId, user_id: userId, form_data: formData }),
     });
   }
 

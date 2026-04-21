@@ -2,11 +2,12 @@ import { useState, useRef, useEffect } from 'react';
 import { Send, Loader2 } from 'lucide-react';
 import { api } from '../../services/api';
 import type { ChatMessage } from '../../types';
-import { useAppDispatch } from '../../app/hooks';
-import { setFormData } from '../interactions/interactionsSlice';
+import { useAppDispatch, useAppSelector } from '../../app/hooks';
+import { setFormData, setHCP, addMaterial } from '../interactions/interactionsSlice';
 
 export function ChatPlaceholder() {
   const dispatch = useAppDispatch();
+  const formData = useAppSelector((state) => state.interactions.formData);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -29,8 +30,12 @@ export function ChatPlaceholder() {
     setInput('');
     setLoading(true);
 
+    const currentFormData = Object.fromEntries(
+      Object.entries(formData).filter(([_, v]) => v !== undefined && v !== null && v !== '' && (Array.isArray(v) ? v.length > 0 : true))
+    );
+
     try {
-      const response = await api.chat(input, sessionId || undefined);
+      const response = await api.chat(input, sessionId || undefined, undefined, currentFormData);
 
       if (!sessionId && response.session_id) {
         setSessionId(response.session_id);
@@ -43,7 +48,43 @@ export function ChatPlaceholder() {
       setMessages((prev) => [...prev, assistantMessage]);
 
       if (response.interaction) {
-        dispatch(setFormData(response.interaction));
+        const interactionData = response.interaction;
+        
+        if (interactionData.hcp_id) {
+          try {
+            const hcp = await api.getHcp(interactionData.hcp_id);
+            dispatch(setHCP(hcp));
+          } catch (e) {
+            console.error('Failed to fetch HCP details:', e);
+            if (interactionData.hcp_name) {
+              dispatch(setHCP({
+                id: interactionData.hcp_id,
+                name: interactionData.hcp_name,
+                specialty: interactionData.hcp_specialty,
+                institution: interactionData.hcp_institution,
+                createdAt: '',
+                updatedAt: '',
+              } as import('../../types').HCP));
+            }
+          }
+        }
+        
+        if (interactionData.materials && Array.isArray(interactionData.materials)) {
+          for (const materialId of interactionData.materials) {
+            try {
+              const material = await api.getMaterial(materialId);
+              dispatch(addMaterial(material));
+            } catch (e) {
+              console.error('Failed to fetch material details:', e);
+            }
+          }
+        }
+        
+        const { hcp_id, materials, ...formFields } = interactionData;
+        dispatch(setFormData({
+          ...formFields,
+          hcpId: interactionData.hcp_id || interactionData.hcpId,
+        }));
       }
     } catch (error) {
       const errorMessage: ChatMessage = {

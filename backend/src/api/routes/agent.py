@@ -26,6 +26,7 @@ class ChatRequest(BaseModel):
     message: str
     session_id: Optional[str] = None
     user_id: Optional[str] = None
+    form_data: Optional[Dict[str, Any]] = None
 
 
 class ChatResponse(BaseModel):
@@ -80,14 +81,45 @@ async def chat(request: ChatRequest):
 
     try:
         result = agent.process(
-            user_input=request.message, session_id=session_id, user_id=user_id
+            user_input=request.message,
+            session_id=session_id,
+            user_id=user_id,
+            form_data=request.form_data,
         )
 
         interaction_data = None
         if result.tool_results:
             for tr in result.tool_results:
                 if tr.get("tool_name") == "create_interaction" and tr.get("success"):
-                    interaction_data = tr.get("data")
+                    interaction_data = tr.get("data", {})
+
+                    enriched_entities = result.entities
+
+                    if enriched_entities.get("hcp_id"):
+                        interaction_data["hcp_id"] = enriched_entities["hcp_id"]
+                    if enriched_entities.get("hcp_name"):
+                        interaction_data["hcp_name"] = enriched_entities["hcp_name"]
+                    if enriched_entities.get("hcp_specialty"):
+                        interaction_data["hcp_specialty"] = enriched_entities[
+                            "hcp_specialty"
+                        ]
+                    if enriched_entities.get("hcp_institution"):
+                        interaction_data["hcp_institution"] = enriched_entities[
+                            "hcp_institution"
+                        ]
+
+                    if enriched_entities.get("topics"):
+                        interaction_data["topics"] = enriched_entities["topics"]
+                    if enriched_entities.get("sentiment"):
+                        interaction_data["sentiment"] = enriched_entities["sentiment"]
+                    if enriched_entities.get("outcome"):
+                        interaction_data["outcome"] = enriched_entities["outcome"]
+                    if enriched_entities.get("attendees"):
+                        interaction_data["attendees"] = enriched_entities["attendees"]
+                    if enriched_entities.get("date_time"):
+                        interaction_data["date_time"] = enriched_entities["date_time"]
+                    if enriched_entities.get("materials"):
+                        interaction_data["materials"] = enriched_entities["materials"]
 
         return ChatResponse(
             message=result.message,

@@ -18,6 +18,7 @@ class ExtractedEntities(BaseModel):
     sentiment: Optional[str] = None  # positive, neutral, negative
     topics: List[str] = Field(default_factory=list)
     attendees: List[str] = Field(default_factory=list)
+    materials: List[str] = Field(default_factory=list)  # material names shared
     follow_up_type: Optional[str] = None  # call, meeting, email
     follow_up_due: Optional[str] = None  # ISO format
 
@@ -44,6 +45,7 @@ class ExtractedEntities(BaseModel):
                 not self.sentiment,
                 not self.topics,
                 not self.attendees,
+                not self.materials,
                 not self.follow_up_type,
                 not self.follow_up_due,
             ]
