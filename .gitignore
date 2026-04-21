@@ -1,0 +1,10 @@
+.git
+.opencode
+.ruff_cache
+**/graphify-out
+**/obs
+AGENTS.md
+opencode.json
+SAMPLE_QUERIES.md
+venv
+.venv
