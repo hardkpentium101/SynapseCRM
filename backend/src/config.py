@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     GROQ_API_KEY: str = ""
     OPENAI_API_KEY: str = ""
     ANTHROPIC_API_KEY: str = ""
+    OPENROUTER_API_KEY: str = ""
 
     # Model Selection (auto or specific)
     MODEL_INTENT: str = ""  # Empty = auto-select
@@ -27,6 +28,10 @@ class Settings(BaseSettings):
     MODEL_INTENT_FALLBACK: str = "llama3-groq-8b-8192-tool-use-preview"
     MODEL_EXTRACT_FALLBACK: str = "mixtral-8x7b-32768"
     MODEL_ORCHESTRATE_FALLBACK: str = "llama3-groq-70b-8192-tool-use-preview"
+
+    # LangSmith
+    LANGSMITH_API_KEY: str = ""
+    LANGSMITH_PROJECT: str = "hcp-agent"
 
     class Config:
         env_file = ".env"

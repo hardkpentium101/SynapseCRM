@@ -2,6 +2,8 @@
 
 **AI-Powered CRM for Pharmaceutical Field Representatives**
 
+![SynapseCRM HCP Interface](hcp.png)
+
 An intelligent, conversational CRM system that transforms how healthcare professionals document field interactions. Using advanced natural language processing, SynapseCRM eliminates tedious manual data entry by automatically extracting, enriching, and organizing interaction details from casual conversation.
 
 ---

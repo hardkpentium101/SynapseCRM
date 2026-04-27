@@ -9,6 +9,38 @@ import time
 from .llm_manager import LLMManager, Model
 
 
+# OpenRouter models sorted by price (cheapest first) - from llm_manager.py
+OPENROUTER_CHAT_MODELS = {
+    # Free models (no cost)
+    "xiaomi/mimo-v2-flash:free",
+    "deepseek/deepseek-r1:free",
+    "meta-llama/llama-3.3-70b-instruct:free",
+    "google/gemma-3-27b-it:free",
+    "mistralai/mistral-7b-instruct:free",
+    # Paid models (sorted by output price ascending)
+    "xiaomi/mimo-v2-flash",
+    "deepseek/deepseek-chat-v3-0324",
+    "openai/gpt-5-mini",
+    "moonshot/kimi-k2.5",
+    "google/gemini-3-flash",
+    "deepseek/deepseek-r1-0528",
+    "openai/gpt-5.1",
+    "openai/gpt-5.2",
+    "anthropic/claude-sonnet-4.6",
+    "anthropic/claude-opus-4.6",
+}
+
+OPENROUTER_TOOL_CALL_MODELS = {
+    "deepseek/deepseek-chat-v3-0324",
+    "openai/gpt-5-mini",
+    "moonshot/kimi-k2.5",
+    "openai/gpt-5.1",
+    "openai/gpt-5.2",
+    "anthropic/claude-sonnet-4.6",
+    "anthropic/claude-opus-4.6",
+}
+
+
 @dataclass
 class ModelSelection:
     model_id: str
@@ -42,20 +74,20 @@ class ModelSelector:
 
     DEFAULT_MODELS = {
         "classification": {
-            "primary": "llama-3.1-8b-instant",
-            "fallback": "llama3-groq-8b-8192-tool-use-preview",
+            "primary": "xiaomi/mimo-v2-flash:free",  # $0.09/$0.29 - cheapest usable
+            "fallback": "deepseek/deepseek-chat-v3-0324",  # $0.26/$0.38 - best value
         },
         "extraction": {
-            "primary": "llama-3.1-70b-versatile",
-            "fallback": "mixtral-8x7b-32768",
+            "primary": "deepseek/deepseek-chat-v3-0324",  # $0.26/$0.38 - quality + price
+            "fallback": "moonshot/kimi-k2.5",  # $0.45/$2.20 - high quality
         },
         "tool_use": {
-            "primary": "llama-3.3-70b-versatile",
-            "fallback": "llama-3.1-70b-versatile",
+            "primary": "openai/gpt-5-mini",  # $0.25/$2.00 - good tool support
+            "fallback": "deepseek/deepseek-chat-v3-0324",  # $0.26/$0.38
         },
         "general": {
-            "primary": "llama-3.1-8b-instant",
-            "fallback": "llama3-groq-8b-8192-tool-use-preview",
+            "primary": "xiaomi/mimo-v2-flash:free",  # $0.09/$0.29 - cheapest
+            "fallback": "deepseek/deepseek-chat-v3-0324",  # $0.26/$0.38
         },
     }
 
@@ -80,13 +112,18 @@ class ModelSelector:
             "prompt-guard",
             "safeguard",
             "oss-20b",
-            "qwen",
         ]
         for pattern in exclude_patterns:
             if pattern in model_lower:
                 return False
         # Check known chat models
         if model_id in CHAT_MODELS:
+            return True
+        # Check OpenRouter chat models
+        if model_id in OPENROUTER_CHAT_MODELS:
+            return True
+        # For OpenRouter models with provider/model format, assume chat capable
+        if "/" in model_id and ":" not in model_id:
             return True
         return True
 
