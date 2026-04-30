@@ -5,16 +5,13 @@ Main HCPAgent - Orchestrates all subagents and handles tool execution
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
 from datetime import datetime
-import json
 
-from .llm_manager import LLMManager, LLMResponse
+from .llm_manager import LLMManager
 from .model_selector import ModelSelector
-from .base import BaseAgent, AgentConfig, AGENT_CONFIGS
-from .subagents import IntentClassifierAgent, EntityExtractorAgent
-from .tools.registry import get_tool_registry, ToolResult
+from .subagents import IntentClassifierAgent, EntityExtractorAgent, OrchestratorAgent
 from .memory import get_memory, SessionData
-from .schemas import Intent, ExtractedEntities
-from .langsmith.tracing import emit_graph_node, setup_langsmith
+from .schemas import ExtractedEntities
+from .langsmith.tracing import emit_graph_node
 
 
 @dataclass
@@ -28,131 +25,6 @@ class AgentResponse:
     session_id: str
     success: bool
     error: Optional[str] = None
-
-
-class OrchestratorAgent(BaseAgent):
-    """Main orchestrator with tool calling capabilities"""
-
-    def __init__(self, llm_manager: LLMManager, model_selector: ModelSelector):
-        config = AGENT_CONFIGS["orchestrator"]
-        tool_registry = get_tool_registry()
-        super().__init__(
-            config,
-            llm_manager,
-            model_selector,
-            {name: tool_registry.execute for name in config.tools},
-        )
-        self.tool_registry = tool_registry
-
-    def process_with_tools(
-        self, user_input: str, context: Dict[str, Any] = None
-    ) -> tuple[str, List[Dict]]:
-        """Process with tool calling and return results"""
-        tool_results = []
-        messages = self._build_messages(user_input, context)
-        max_iterations = 5
-        iteration = 0
-
-        while iteration < max_iterations:
-            iteration += 1
-            response = self.complete(messages, use_tools=True)
-
-            if not response.tool_calls:
-                return response.content or "Done.", tool_results
-
-            for tool_call in response.tool_calls:
-                messages.append(
-                    {
-                        "role": "assistant",
-                        "content": None,
-                        "tool_calls": [
-                            {
-                                "id": tool_call.id,
-                                "type": "function",
-                                "function": {
-                                    "name": tool_call.name,
-                                    "arguments": json.dumps(tool_call.arguments)
-                                    if isinstance(tool_call.arguments, dict)
-                                    else tool_call.arguments,
-                                },
-                            }
-                        ],
-                    }
-                )
-
-                tool_result = self.tool_registry.execute(
-                    tool_call.name, tool_call.arguments
-                )
-                tool_results.append(tool_result.to_dict())
-
-                result_content = json.dumps(tool_result.to_dict())
-                messages.append(
-                    {
-                        "role": "tool",
-                        "tool_call_id": tool_call.id,
-                        "name": tool_call.name,
-                        "content": result_content,
-                    }
-                )
-
-        return response.content or "Processing complete.", tool_results
-
-    def process(self, user_input: str, context: Dict[str, Any] = None) -> str:
-        """Process with tool calling"""
-        messages = self._build_messages(user_input, context)
-        max_iterations = 5
-        iteration = 0
-
-        while iteration < max_iterations:
-            iteration += 1
-            response = self.complete(messages, use_tools=True)
-
-            # If no tool calls, return content
-            if not response.tool_calls:
-                return response.content or "I'm not sure how to help with that."
-
-            # Process each tool call
-            for tool_call in response.tool_calls:
-                # Add tool call to messages
-                messages.append(
-                    {
-                        "role": "assistant",
-                        "content": None,
-                        "tool_calls": [
-                            {
-                                "id": tool_call.id,
-                                "type": "function",
-                                "function": {
-                                    "name": tool_call.name,
-                                    "arguments": json.dumps(tool_call.arguments)
-                                    if isinstance(tool_call.arguments, dict)
-                                    else tool_call.arguments,
-                                },
-                            }
-                        ],
-                    }
-                )
-
-                # Execute tool
-                tool_result = self.tool_registry.execute(
-                    tool_call.name, tool_call.arguments
-                )
-
-                # Add result to messages
-                result_content = json.dumps(tool_result.to_dict())
-                messages.append(
-                    {
-                        "role": "tool",
-                        "tool_call_id": tool_call.id,
-                        "name": tool_call.name,
-                        "content": result_content,
-                    }
-                )
-
-            # Check if we should continue (model might call more tools)
-            # For now, just return the last content
-
-        return response.content or "Processing complete."
 
 
 class HCPAgent:
@@ -187,14 +59,12 @@ class HCPAgent:
 
         entities = {}
 
-        # Extract doctor name
         dr_match = re.search(
             r"(?:Dr\.?|Doctor)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)", text
         )
         if dr_match:
             entities["hcp_name"] = dr_match.group(1)
 
-        # Extract date for follow-up
         date_match = re.search(
             r"(?:next week|tomorrow|(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}))",
             text,
@@ -236,16 +106,13 @@ class HCPAgent:
         """
         Process user input through the agent pipeline
         """
-        # Ensure session exists
         session = self.memory.get_session(session_id)
         if not session:
             session = self.create_session(user_id)
             session_id = session.session_id
 
-        # Add user message to history
         self.memory.add_message(session_id, "user", user_input)
 
-        # Track intent and entities for the outer exception handler
         intent = "unknown"
         entities_dict = {}
 
@@ -257,7 +124,6 @@ class HCPAgent:
                 )
                 intent = intent_result["intent"]
             except Exception:
-                # Fallback intent detection via keywords
                 user_lower = user_input.lower()
                 if "suggest" in user_lower or "recommend" in user_lower or "next step" in user_lower:
                     intent = "suggest_follow_up"
@@ -289,11 +155,9 @@ class HCPAgent:
             try:
                 entities_result = self.entity_extractor.extract_with_raw(user_input)
                 entities = entities_result["entities"]
-            except Exception as e:
-                # Fallback to regex extraction if LLM fails
+            except Exception:
                 pass
 
-            # Convert to dict for validation (use model_dump to keep None values)
             if hasattr(entities, "model_dump"):
                 entities_dict = {
                     k: v for k, v in entities.model_dump().items() if v is not None
@@ -303,29 +167,24 @@ class HCPAgent:
             else:
                 entities_dict = {}
 
-            # If still empty, use regex fallback
             if not entities_dict:
                 entities_dict = self._extract_entities_regex(user_input)
 
-            # Extract material names from user input via DB lookup
             if not entities_dict.get("materials"):
                 entities_dict["materials"] = self._extract_materials_from_text(user_input)
 
-            # Merge form_data into entities (e.g., from a form submission)
             if form_data:
                 for key, value in form_data.items():
                     if value is not None and (key not in entities_dict or not entities_dict.get(key)):
                         entities_dict[key] = value
 
-            # Also merge regex-extracted entities (doctor names, dates)
             regex_entities = self._extract_entities_regex(user_input)
             for key, value in regex_entities.items():
                 if key not in entities_dict or not entities_dict.get(key):
                     entities_dict[key] = value
 
-            # Step 2.5: Validate and enrich entities (search for hcp_id if missing)
+            # Step 2.5: Validate and enrich entities
             if intent in ["search_hcp", "create_interaction", "create_follow_up", "update_interaction"]:
-                # If we have hcp_id but missing hcp_name/specialty/institution, look up by ID
                 if entities_dict.get("hcp_id") and not entities_dict.get("hcp_name"):
                     from .services.tool_services import HCPService
                     hcp_by_id = HCPService.get_hcp_by_id(entities_dict["hcp_id"])
@@ -333,10 +192,8 @@ class HCPAgent:
                         entities_dict["hcp_name"] = hcp_by_id.get("name", "")
                         entities_dict["hcp_specialty"] = hcp_by_id.get("specialty", "")
                         entities_dict["hcp_institution"] = hcp_by_id.get("institution", "")
-                # Otherwise search by name to get ID (old behavior)
                 elif entities_dict.get("hcp_name") and not entities_dict.get("hcp_id"):
                     hcp_name = entities_dict.get("hcp_name", "")
-                    # Strip "Dr." prefix for search
                     hcp_name = hcp_name.replace("Dr.", "").replace("Dr", "").strip()
                     from .services.tool_services import HCPService
                     search_results = HCPService.search_hcp(hcp_name)
@@ -346,7 +203,6 @@ class HCPAgent:
                         entities_dict["hcp_specialty"] = search_results[0].get("specialty")
                         entities_dict["hcp_institution"] = search_results[0].get("institution")
 
-            # Update session with entities
             self.memory.set_entities(session_id, entities_dict)
 
             emit_graph_node(
@@ -359,7 +215,7 @@ class HCPAgent:
             context = {
                 "intent": intent,
                 "entities": entities_dict,
-                "conversation_history": self.memory.get_history(session_id, limit=10),
+                "conversation_history": self.memory.get_history(session_id, limit=20),
             }
 
             # Step 4: Orchestrate response with tools
@@ -397,7 +253,6 @@ class HCPAgent:
                 outputs={"response": response_message[:500], "tool_call_count": len(tool_results)},
             )
 
-            # Add assistant response to history
             self.memory.add_message(session_id, "assistant", response_message)
 
             return AgentResponse(
@@ -410,8 +265,10 @@ class HCPAgent:
             )
 
         except Exception as e:
+            error_msg = f"I encountered an error processing your request: {str(e)}"
+            self.memory.add_message(session_id, "assistant", error_msg)
             return AgentResponse(
-                message=f"I encountered an error processing your request: {str(e)}",
+                message=error_msg,
                 intent=intent,
                 entities=entities_dict,
                 tool_results=[],

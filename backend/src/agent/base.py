@@ -188,6 +188,7 @@ CRITICAL RESPONSE RULES:
 - When confirming an action, state what was done in plain language (e.g., "Meeting with Dr. Sharma recorded")
 - If the user corrects something (e.g., "it was Dr. Patel instead"), confirm the correction and ask if they want to proceed
 - For short answers like "yes", "ok", "sure" — interpret them in context of the last thing you asked. If you offered to create a follow-up, "yes" means create it.
+- For numbered responses like "1", "2", "3" — interpret them as the corresponding numbered option you presented. If you asked "Do you mean (1) show timezone, (2) set timezone?" and the user says "1", they chose option 1.
 - When offering next steps, list 2-3 concise options without internal details
 
 CRITICAL ACCURACY RULES:
@@ -265,7 +266,7 @@ class BaseAgent(ABC):
 
                 value = context[key]
                 if config["mode"] == "extend":
-                    messages.extend(value[-10:])
+                    messages.extend(value)
                 else:
                     content = config["template"].format(value)
                     messages.append({"role": "system", "content": content})

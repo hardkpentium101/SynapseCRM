@@ -22,9 +22,13 @@ def register_context_tools(registry: ToolRegistry):
                     "type": "integer",
                     "description": "Number of recent messages to return",
                     "default": 10,
-                }
+                },
+                "session_id": {
+                    "type": "string",
+                    "description": "Session ID to retrieve history for",
+                },
             },
-            required=[],
+            required=["session_id"],
         ),
     )
 
@@ -68,12 +72,12 @@ def register_context_tools(registry: ToolRegistry):
     )
 
 
-def _get_conversation_history(limit: int = 10) -> Dict[str, Any]:
+def _get_conversation_history(session_id: str, limit: int = 10) -> Dict[str, Any]:
     """Get conversation history from session memory"""
     from ..memory.conversation_memory import get_memory
 
     memory = get_memory()
-    history = memory.get_history(limit=limit)
+    history = memory.get_history(session_id=session_id, limit=limit)
 
     return {
         "messages": [
