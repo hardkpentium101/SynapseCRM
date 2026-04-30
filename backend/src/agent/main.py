@@ -6,7 +6,6 @@ from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
 from datetime import datetime
 import json
-import os
 
 from .llm_manager import LLMManager, LLMResponse
 from .model_selector import ModelSelector
@@ -15,19 +14,7 @@ from .subagents import IntentClassifierAgent, EntityExtractorAgent
 from .tools.registry import get_tool_registry, ToolResult
 from .memory import get_memory, SessionData
 from .schemas import Intent, ExtractedEntities
-
-# Initialize LangSmith tracing if available
-LANGSMITH_API_KEY = os.getenv("LANGSMITH_API_KEY")
-LANGSMITH_PROJECT = os.getenv("LANGSMITH_PROJECT", "hcp-agent")
-
-if LANGSMITH_API_KEY:
-    try:
-        os.environ["LANGCHAIN_TRACING_V2"] = "true"
-        os.environ["LANGCHAIN_API_KEY"] = LANGSMITH_API_KEY
-        os.environ["LANGCHAIN_PROJECT"] = LANGSMITH_PROJECT
-        print(f"✓ LangSmith tracing enabled: {LANGSMITH_PROJECT}")
-    except Exception as e:
-        print(f"⚠ LangSmith setup failed: {e}")
+from .langsmith.tracing import emit_graph_node, setup_langsmith
 
 
 @dataclass
@@ -58,11 +45,11 @@ class OrchestratorAgent(BaseAgent):
         self.tool_registry = tool_registry
 
     def process_with_tools(
-        self, input: str, context: Dict[str, Any] = None
+        self, user_input: str, context: Dict[str, Any] = None
     ) -> tuple[str, List[Dict]]:
         """Process with tool calling and return results"""
         tool_results = []
-        messages = self._build_messages(input, context)
+        messages = self._build_messages(user_input, context)
         max_iterations = 5
         iteration = 0
 
@@ -110,9 +97,9 @@ class OrchestratorAgent(BaseAgent):
 
         return response.content or "Processing complete.", tool_results
 
-    def process(self, input: str, context: Dict[str, Any] = None) -> str:
+    def process(self, user_input: str, context: Dict[str, Any] = None) -> str:
         """Process with tool calling"""
-        messages = self._build_messages(input, context)
+        messages = self._build_messages(user_input, context)
         max_iterations = 5
         iteration = 0
 
@@ -221,12 +208,30 @@ class HCPAgent:
 
         return entities
 
+    def _extract_materials_from_text(self, text: str) -> list:
+        """Extract material names from user input by matching against DB materials"""
+        from .services.tool_services import MaterialService
+
+        try:
+            all_materials = MaterialService.search_material("", limit=50)
+        except Exception:
+            return []
+
+        text_lower = text.lower()
+        found = []
+        for mat in all_materials:
+            mat_name = mat.get("name", "")
+            if mat_name and mat_name.lower() in text_lower:
+                found.append(mat_name)
+        return found
+
     def process(
         self,
         user_input: str,
         session_id: str,
         user_id: str = "default",
         include_thinking: bool = False,
+        form_data: dict = None,
     ) -> AgentResponse:
         """
         Process user input through the agent pipeline
@@ -240,6 +245,10 @@ class HCPAgent:
         # Add user message to history
         self.memory.add_message(session_id, "user", user_input)
 
+        # Track intent and entities for the outer exception handler
+        intent = "unknown"
+        entities_dict = {}
+
         try:
             # Step 1: Classify intent
             try:
@@ -247,25 +256,33 @@ class HCPAgent:
                     user_input
                 )
                 intent = intent_result["intent"]
-            except Exception as e:
+            except Exception:
                 # Fallback intent detection via keywords
                 user_lower = user_input.lower()
-                if "follow" in user_lower or "schedule" in user_lower:
+                if "suggest" in user_lower or "recommend" in user_lower or "next step" in user_lower:
+                    intent = "suggest_follow_up"
+                elif "follow" in user_lower or "schedule" in user_lower:
                     intent = "create_follow_up"
-                elif (
-                    "meet" in user_lower
-                    or "met" in user_lower
-                    or "meeting" in user_lower
-                ):
+                elif "edit" in user_lower or "update" in user_lower or "modify" in user_lower or "change" in user_lower:
+                    intent = "update_interaction"
+                elif "meet" in user_lower or "met" in user_lower or "meeting" in user_lower:
                     intent = "create_interaction"
-                elif (
-                    "search" in user_lower
-                    or "find" in user_lower
-                    or "look for" in user_lower
+                elif ("search" in user_lower or "find" in user_lower or "look for" in user_lower) and (
+                    "material" in user_lower or "brochure" in user_lower or "sample" in user_lower
                 ):
+                    intent = "search_materials"
+                elif "search" in user_lower or "find" in user_lower or "look for" in user_lower:
                     intent = "search_hcp"
+                elif "material" in user_lower or "brochure" in user_lower:
+                    intent = "search_materials"
                 else:
                     intent = "unknown"
+
+            emit_graph_node(
+                "intent_classifier",
+                inputs={"user_input": user_input[:200], "session_id": session_id},
+                outputs={"intent": intent},
+            )
 
             # Step 2: Extract entities
             entities = {}
@@ -290,45 +307,94 @@ class HCPAgent:
             if not entities_dict:
                 entities_dict = self._extract_entities_regex(user_input)
 
-            # Also merge with regex extraction for redundancy
+            # Extract material names from user input via DB lookup
+            if not entities_dict.get("materials"):
+                entities_dict["materials"] = self._extract_materials_from_text(user_input)
+
+            # Merge form_data into entities (e.g., from a form submission)
+            if form_data:
+                for key, value in form_data.items():
+                    if value is not None and (key not in entities_dict or not entities_dict.get(key)):
+                        entities_dict[key] = value
+
+            # Also merge regex-extracted entities (doctor names, dates)
             regex_entities = self._extract_entities_regex(user_input)
             for key, value in regex_entities.items():
                 if key not in entities_dict or not entities_dict.get(key):
                     entities_dict[key] = value
 
             # Step 2.5: Validate and enrich entities (search for hcp_id if missing)
-            if intent in ["search_hcp", "create_interaction", "create_follow_up"]:
-                hcp_name = entities_dict.get("hcp_name", "")
-                # Strip "Dr." prefix for search
-                hcp_name = hcp_name.replace("Dr.", "").replace("Dr", "").strip()
-                if hcp_name and not entities_dict.get("hcp_id"):
-                    # Search for HCP to get ID
+            if intent in ["search_hcp", "create_interaction", "create_follow_up", "update_interaction"]:
+                # If we have hcp_id but missing hcp_name/specialty/institution, look up by ID
+                if entities_dict.get("hcp_id") and not entities_dict.get("hcp_name"):
                     from .services.tool_services import HCPService
-
+                    hcp_by_id = HCPService.get_hcp_by_id(entities_dict["hcp_id"])
+                    if hcp_by_id:
+                        entities_dict["hcp_name"] = hcp_by_id.get("name", "")
+                        entities_dict["hcp_specialty"] = hcp_by_id.get("specialty", "")
+                        entities_dict["hcp_institution"] = hcp_by_id.get("institution", "")
+                # Otherwise search by name to get ID (old behavior)
+                elif entities_dict.get("hcp_name") and not entities_dict.get("hcp_id"):
+                    hcp_name = entities_dict.get("hcp_name", "")
+                    # Strip "Dr." prefix for search
+                    hcp_name = hcp_name.replace("Dr.", "").replace("Dr", "").strip()
+                    from .services.tool_services import HCPService
                     search_results = HCPService.search_hcp(hcp_name)
                     if search_results:
                         entities_dict["hcp_id"] = search_results[0].get("id")
                         entities_dict["hcp_name"] = search_results[0].get("name")
-                        entities_dict["hcp_specialty"] = search_results[0].get(
-                            "specialty"
-                        )
-                        entities_dict["hcp_institution"] = search_results[0].get(
-                            "institution"
-                        )
+                        entities_dict["hcp_specialty"] = search_results[0].get("specialty")
+                        entities_dict["hcp_institution"] = search_results[0].get("institution")
 
             # Update session with entities
-            self.memory.set_entities(session_id, entities)
+            self.memory.set_entities(session_id, entities_dict)
+
+            emit_graph_node(
+                "entity_extractor",
+                inputs={"user_input": user_input[:200], "intent": intent},
+                outputs={"entities_keys": list(entities_dict.keys())},
+            )
 
             # Step 3: Get context for orchestrator
             context = {
                 "intent": intent,
-                "entities": entities,
+                "entities": entities_dict,
                 "conversation_history": self.memory.get_history(session_id, limit=10),
             }
 
             # Step 4: Orchestrate response with tools
             response_message, tool_results = self.orchestrator.process_with_tools(
                 user_input, context
+            )
+
+            # Step 4.5: Auto-generate follow-up suggestions after create_interaction
+            for tr in tool_results:
+                if tr.get("tool_name") == "create_interaction" and tr.get("success"):
+                    interaction_data = tr.get("data", {})
+                    interaction_id = interaction_data.get("id")
+                    hcp_id = interaction_data.get("hcp_id") or interaction_data.get("hcpId")
+                    if hcp_id:
+                        from .tools.followup_tools import _suggest_follow_up_actions
+                        try:
+                            suggestions_result = _suggest_follow_up_actions(
+                                interaction_id=interaction_id,
+                                hcp_id=hcp_id,
+                                context=", ".join(entities_dict.get("topics", [])) if isinstance(entities_dict.get("topics"), list) else str(entities_dict.get("topics", "")),
+                            )
+                            if suggestions_result.get("success"):
+                                tool_results.append({
+                                    "tool_name": "suggest_follow_up_actions",
+                                    "success": True,
+                                    "data": suggestions_result,
+                                })
+                        except Exception:
+                            pass
+                    break
+
+            emit_graph_node(
+                "orchestrator",
+                inputs={"user_input": user_input[:200], "intent": intent},
+                outputs={"response": response_message[:500], "tool_call_count": len(tool_results)},
             )
 
             # Add assistant response to history
@@ -346,8 +412,8 @@ class HCPAgent:
         except Exception as e:
             return AgentResponse(
                 message=f"I encountered an error processing your request: {str(e)}",
-                intent=intent if intent != "error" else "unknown",
-                entities=entities_dict if entities_dict else {},
+                intent=intent,
+                entities=entities_dict,
                 tool_results=[],
                 session_id=session_id,
                 success=False,

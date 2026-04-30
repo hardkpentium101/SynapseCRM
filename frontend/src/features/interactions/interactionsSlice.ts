@@ -7,6 +7,7 @@ interface InteractionsState {
   activeId: string | null;
   activeInteraction: Interaction | null;
   formData: Partial<Interaction>;
+  sessionId: string | null;
   dirty: boolean;
   loading: boolean;
   saving: boolean;
@@ -27,11 +28,24 @@ const initialState: InteractionsState = {
   activeId: null,
   activeInteraction: null,
   formData: initialFormData,
+  sessionId: null,
   dirty: false,
   loading: false,
   saving: false,
   error: null,
 };
+
+export const loadSessionEntities = createAsyncThunk(
+  'interactions/loadSessionEntities',
+  async (sessionId: string, { rejectWithValue }) => {
+    try {
+      const response = await api.getSessionEntities(sessionId);
+      return { sessionId, entities: response.entities };
+    } catch (error) {
+      return rejectWithValue((error as Error).message);
+    }
+  }
+);
 
 export const fetchInteractions = createAsyncThunk(
   'interactions/fetchAll',
@@ -57,7 +71,7 @@ export const fetchInteraction = createAsyncThunk(
 
 export const createInteraction = createAsyncThunk(
   'interactions/create',
-  async (data: Partial<Interaction>, { rejectWithValue }) => {
+  async (data: { hcpId: string; type: string; dateTime: string; topics?: string; sentiment?: Sentiment; outcome?: string; attendees?: string[]; materialIds?: string[]; samples?: Array<{ product_name: string; lot_number?: string; quantity: number }> }, { rejectWithValue }) => {
     try {
       return await api.createInteraction(data);
     } catch (error) {
@@ -167,12 +181,47 @@ const interactionsSlice = createSlice({
       state.activeInteraction = null;
       state.dirty = false;
     },
+    setSessionId: (state, action: PayloadAction<string | null>) => {
+      state.sessionId = action.payload;
+    },
     clearDirty: (state) => {
       state.dirty = false;
     },
   },
   extraReducers: (builder) => {
     builder
+      .addCase(loadSessionEntities.fulfilled, (state, action) => {
+        const { sessionId, entities } = action.payload;
+        state.sessionId = sessionId;
+        if (entities.hcp_id) {
+          const hcpData: HCP = {
+            id: entities.hcp_id as string,
+            name: (entities.hcp_name as string) || '',
+            specialty: (entities.hcp_specialty as string) || '',
+            institution: (entities.hcp_institution as string) || '',
+          };
+          state.formData.hcpId = entities.hcp_id as string;
+          state.formData.hcp = hcpData;
+        }
+        if (entities.date_time) {
+          state.formData.dateTime = entities.date_time as string;
+        }
+        if (entities.type) {
+          state.formData.type = entities.type as Interaction['type'];
+        }
+        if (entities.topics) {
+          const topicsVal = entities.topics;
+          state.formData.topics = Array.isArray(topicsVal)
+            ? topicsVal.join(', ')
+            : String(topicsVal);
+        }
+        if (entities.sentiment) {
+          state.formData.sentiment = entities.sentiment as Sentiment;
+        }
+        if (entities.outcome) {
+          state.formData.outcome = entities.outcome as string;
+        }
+      })
       .addCase(fetchInteractions.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -240,6 +289,7 @@ export const {
   addFollowUp,
   removeFollowUp,
   resetForm,
+  setSessionId,
   clearDirty,
 } = interactionsSlice.actions;
 

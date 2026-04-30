@@ -6,6 +6,8 @@ from typing import Dict, List, Callable, Any, Optional
 from dataclasses import dataclass
 import json
 
+from ..langsmith.tracing import emit_tool_call
+
 
 @dataclass
 class ToolDefinition:
@@ -59,16 +61,18 @@ class ToolRegistry:
 
         try:
             result = self._tools[name](**arguments)
-            return ToolResult(success=True, data=result, tool_name=name)
+            tool_result = ToolResult(success=True, data=result, tool_name=name)
         except TypeError as e:
-            # Handle missing required arguments
-            return ToolResult(
+            tool_result = ToolResult(
                 success=False,
                 error=f"Missing required argument: {str(e)}",
                 tool_name=name,
             )
         except Exception as e:
-            return ToolResult(success=False, error=str(e), tool_name=name)
+            tool_result = ToolResult(success=False, error=str(e), tool_name=name)
+
+        emit_tool_call(name, arguments, tool_result.to_dict())
+        return tool_result
 
     def get_definition(self, name: str) -> Optional[ToolDefinition]:
         """Get tool definition"""
@@ -120,11 +124,13 @@ def _register_all_tools(registry: ToolRegistry):
     from .interaction_tools import register_interaction_tools
     from .followup_tools import register_followup_tools
     from .context_tools import register_context_tools
+    from .material_tools import register_material_tools
 
     register_hcp_tools(registry)
     register_interaction_tools(registry)
     register_followup_tools(registry)
     register_context_tools(registry)
+    register_material_tools(registry)
 
 
 def get_tool_definitions(tool_names: List[str]) -> List[Dict]:

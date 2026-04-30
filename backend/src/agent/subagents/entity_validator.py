@@ -223,7 +223,7 @@ class EntityValidatorAgent(BaseAgent):
             suggestion=f"Multiple HCPs match '{hcp_name}'. Which one did you mean?",
         )
 
-    def process(self, input: str, context: Dict[str, Any] = None) -> ValidationResult:
+    def process(self, user_input: str, context: Dict[str, Any] = None) -> ValidationResult:
         """Validate entities from input"""
         extracted = context.get("entities", {}) if context else {}
 

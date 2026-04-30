@@ -19,8 +19,8 @@ export interface HCP {
   phone?: string;
   notes?: string;
   createdBy?: string;
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export type InteractionType = 'meeting' | 'call' | 'conference' | 'email';
@@ -111,4 +111,5 @@ export interface ChatResponse {
   success: boolean;
   error?: string;
   interaction?: Interaction;
+  aiSuggestions?: Array<{ id?: string; description: string; type?: string; dueInDays?: number; dueDate?: string; priority?: string }>;
 }

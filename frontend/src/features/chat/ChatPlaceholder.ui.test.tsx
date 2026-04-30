@@ -4,16 +4,21 @@ import { render, screen } from '@testing-library/react'
 import { Provider } from 'react-redux'
 import { configureStore } from '@reduxjs/toolkit'
 import interactionsReducer from '../interactions/interactionsSlice'
+import chatReducer from './chatSlice'
 import { ChatPlaceholder } from './ChatPlaceholder'
 
 vi.mock('../app/hooks', () => ({
   useAppDispatch: () => vi.fn(),
-  useAppSelector: () => ({ formData: {}, dirty: false }),
+  useAppSelector: (selector: (state: any) => any) => selector({
+    chat: { messages: [], loading: false, sessionId: null },
+    interactions: { formData: {}, dirty: false },
+  }),
 }))
 
 const createTestStore = () => configureStore({
   reducer: {
     interactions: interactionsReducer,
+    chat: chatReducer,
   },
 })
 

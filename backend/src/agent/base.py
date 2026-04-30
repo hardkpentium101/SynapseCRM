@@ -32,7 +32,7 @@ EXAMPLES:
 - "Hello" → general_query
 - "Thanks" → general_query
 
-Valid intents: add_hcp, create_interaction, search_hcp, get_summary, create_follow_up, update_follow_up, update_interaction, general_query, unknown
+Valid intents: add_hcp, create_interaction, update_interaction, search_hcp, get_summary, create_follow_up, suggest_follow_up, update_follow_up, search_materials, general_query, unknown
 
 IMPORTANT: Reply with ONLY ONE word - the intent. Nothing else."""
 
@@ -47,11 +47,14 @@ Extract structured information from user messages. Return a JSON object with:
 - interaction_type: Type of interaction ("meeting", "call", "email", "conference", or null)
 - date_time: When interaction occurred/scheduled (ISO format or null if not mentioned)
 - sentiment: Emotional tone ("positive", "neutral", "negative", or null)
-- topics: List of discussion topics mentioned
+- topics: List of discussion topics mentioned (keep product names intact — e.g., "OncoBoost", "NeuroPlus", "CardioProtect" are single words, NEVER split them)
 - attendees: List of other people mentioned (or empty array)
+- materials: List of product/material names mentioned (e.g., "OncoBoost Phase III Brochure", "NeuroPlus Clinical Summary", sample kits)
+- outcome: Result or summary of the interaction (what was agreed, decided, or concluded)
 - follow_up_type: Type of follow-up if mentioned ("call", "meeting", "email", or null)
 - follow_up_due: Follow-up due date if mentioned (ISO format or null)
 
+IMPORTANT: Product names like OncoBoost, NeuroPlus, CardioProtect are single words — never split them into fragments.
 Return JSON with null for fields not mentioned."""
 
 ENTITY_VALIDATOR_PROMPT = """You are an HCP CRM entity validator.
@@ -98,6 +101,7 @@ ENTITY_SCHEMA = {
     "sentiment": None,
     "topics": [],
     "attendees": [],
+    "outcome": None,
     "follow_up_type": None,
     "follow_up_due": None,
 }
@@ -165,17 +169,32 @@ You help healthcare field representatives manage their HCP interactions.
 
 IMPORTANT - Use extracted entities from context:
 - The entities provided in context contain resolved hcp_id, hcp_name, hcp_specialty, hcp_institution, materials IDs, topics, attendees, date_time, and sentiment
-- ALWAYS use the hcp_id from entities when calling create_interaction - never use hcp_name as hcp_id
+- ALWAYS use the hcp_id from entities when calling create_interaction or update_interaction - never use hcp_name as hcp_id
 - When creating interactions, include all resolved information from the entities context
 
 Your capabilities:
 1. Search for healthcare professionals
-2. Create and manage interactions
-3. Schedule follow-ups
-4. Provide summaries and insights
+2. Create, update, and manage interactions
+3. Schedule and suggest follow-ups
+4. Search and recommend materials
+5. Provide summaries and insights
 
 Be concise and actionable. When users mention HCPs, use the search_hcp tool to find them first.
-When creating interactions, ALWAYS use the resolved hcp_id from the entities context.""",
+When creating interactions, ALWAYS use the resolved hcp_id from the entities context.
+
+CRITICAL RESPONSE RULES:
+- NEVER expose internal IDs (hcp_id, interaction_id, UUIDs) in your response text
+- Keep messages short and conversational — 2-4 sentences max
+- When confirming an action, state what was done in plain language (e.g., "Meeting with Dr. Sharma recorded")
+- If the user corrects something (e.g., "it was Dr. Patel instead"), confirm the correction and ask if they want to proceed
+- For short answers like "yes", "ok", "sure" — interpret them in context of the last thing you asked. If you offered to create a follow-up, "yes" means create it.
+- When offering next steps, list 2-3 concise options without internal details
+
+CRITICAL ACCURACY RULES:
+- NEVER add or invent topics, materials, or outcomes that the user did not mention
+- Product names are single words: OncoBoost, NeuroPlus, CardioProtect — NEVER split them into fragments like "Onco Bo ost" or "Neuro Plus"
+- Only report what the user actually said. Do not hallucinate shared brochures, PDFs, or materials not mentioned by the user
+- When describing topics discussed, quote or closely paraphrase the user's exact words""",
         model_task="tool_use",
         tools=[
             "search_hcp",
@@ -184,8 +203,11 @@ When creating interactions, ALWAYS use the resolved hcp_id from the entities con
             "update_interaction",
             "get_interactions",
             "create_follow_up",
+            "suggest_follow_up_actions",
             "get_follow_ups",
             "update_follow_up",
+            "search_materials",
+            "recommend_materials",
             "get_conversation_history",
             "clear_session",
         ],
@@ -261,7 +283,7 @@ class BaseAgent(ABC):
         return get_tool_definitions(self.config.tools)
 
     @abstractmethod
-    def process(self, input: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
+    def process(self, user_input: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
         """Process input and return structured response"""
         pass
 

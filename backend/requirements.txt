@@ -13,4 +13,6 @@ openai>=1.0.0
 langgraph>=0.2.0
 langchain-core>=0.3.0
 langsmith>=0.1.0
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
 

@@ -6,43 +6,12 @@ from typing import Dict, List, Optional
 from dataclasses import dataclass
 import time
 
-from .llm_manager import LLMManager, Model
-
-
-# OpenRouter models sorted by price (cheapest first) - from llm_manager.py
-OPENROUTER_CHAT_MODELS = {
-    # Free models (no cost)
-    "xiaomi/mimo-v2-flash:free",
-    "deepseek/deepseek-r1:free",
-    "meta-llama/llama-3.3-70b-instruct:free",
-    "google/gemma-3-27b-it:free",
-    "mistralai/mistral-7b-instruct:free",
-    # Paid models (sorted by output price ascending)
-    "xiaomi/mimo-v2-flash",
-    "deepseek/deepseek-chat-v3-0324",
-    "openai/gpt-5-mini",
-    "moonshot/kimi-k2.5",
-    "google/gemini-3-flash",
-    "deepseek/deepseek-r1-0528",
-    "openai/gpt-5.1",
-    "openai/gpt-5.2",
-    "anthropic/claude-sonnet-4.6",
-    "anthropic/claude-opus-4.6",
-}
-
-OPENROUTER_TOOL_CALL_MODELS = {
-    "deepseek/deepseek-chat-v3-0324",
-    "openai/gpt-5-mini",
-    "moonshot/kimi-k2.5",
-    "openai/gpt-5.1",
-    "openai/gpt-5.2",
-    "anthropic/claude-sonnet-4.6",
-    "anthropic/claude-opus-4.6",
-}
+from .llm_manager import LLMManager, Model, OPENROUTER_CHAT_MODELS, OPENROUTER_TOOL_CALL_MODELS
 
 
 @dataclass
 class ModelSelection:
+    """Represents a model selection with metadata"""
     model_id: str
     latency: float
     is_fallback: bool = False
@@ -74,20 +43,24 @@ class ModelSelector:
 
     DEFAULT_MODELS = {
         "classification": {
-            "primary": "xiaomi/mimo-v2-flash:free",  # $0.09/$0.29 - cheapest usable
-            "fallback": "deepseek/deepseek-chat-v3-0324",  # $0.26/$0.38 - best value
+            "primary": "xiaomi/mimo-v2-flash:free",
+            "fallback": "deepseek/deepseek-chat-v3-0324",
         },
         "extraction": {
-            "primary": "deepseek/deepseek-chat-v3-0324",  # $0.26/$0.38 - quality + price
-            "fallback": "moonshot/kimi-k2.5",  # $0.45/$2.20 - high quality
+            "primary": "deepseek/deepseek-chat-v3-0324",
+            "fallback": "moonshot/kimi-k2.5",
+        },
+        "validation": {
+            "primary": "xiaomi/mimo-v2-flash:free",
+            "fallback": "deepseek/deepseek-chat-v3-0324",
         },
         "tool_use": {
-            "primary": "openai/gpt-5-mini",  # $0.25/$2.00 - good tool support
-            "fallback": "deepseek/deepseek-chat-v3-0324",  # $0.26/$0.38
+            "primary": "openai/gpt-5-mini",
+            "fallback": "deepseek/deepseek-chat-v3-0324",
         },
         "general": {
-            "primary": "xiaomi/mimo-v2-flash:free",  # $0.09/$0.29 - cheapest
-            "fallback": "deepseek/deepseek-chat-v3-0324",  # $0.26/$0.38
+            "primary": "xiaomi/mimo-v2-flash:free",
+            "fallback": "deepseek/deepseek-chat-v3-0324",
         },
     }
 

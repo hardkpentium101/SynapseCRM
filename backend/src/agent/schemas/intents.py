@@ -11,10 +11,13 @@ import re
 class Intent(str, Enum):
     ADD_HCP = "add_hcp"
     CREATE_INTERACTION = "create_interaction"
+    UPDATE_INTERACTION = "update_interaction"
     SEARCH_HCP = "search_hcp"
     GET_SUMMARY = "get_summary"
     CREATE_FOLLOW_UP = "create_follow_up"
+    SUGGEST_FOLLOW_UP = "suggest_follow_up"
     UPDATE_FOLLOW_UP = "update_follow_up"
+    SEARCH_MATERIALS = "search_materials"
     GENERAL_QUERY = "general_query"
     UNKNOWN = "unknown"
 
@@ -81,11 +84,42 @@ class IntentClassification(BaseModel):
                 "followup",
                 "set reminder",
             ],
+            Intent.UPDATE_INTERACTION: [
+                "update_interaction",
+                "updateinteraction",
+                "edit interaction",
+                "editinteraction",
+                "modify",
+                "change",
+                "update notes",
+                "update topics",
+                "update sentiment",
+            ],
             Intent.UPDATE_FOLLOW_UP: [
                 "update_follow_up",
                 "update_followup",
                 "complete follow",
                 "done follow",
+            ],
+            Intent.SUGGEST_FOLLOW_UP: [
+                "suggest_follow_up",
+                "suggest_followup",
+                "suggest follow",
+                "recommend follow",
+                "what follow",
+                "next steps",
+                "what should i do next",
+            ],
+            Intent.SEARCH_MATERIALS: [
+                "search_materials",
+                "searchmaterials",
+                "find materials",
+                "find brochures",
+                "find samples",
+                "show materials",
+                "list materials",
+                "available materials",
+                "product catalog",
             ],
             Intent.GENERAL_QUERY: [
                 "hello",

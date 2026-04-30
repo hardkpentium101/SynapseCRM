@@ -96,7 +96,7 @@ class ApiService {
     return this.request<Interaction>(`/interactions/${id}`);
   }
 
-  async createInteraction(data: Partial<Interaction>): Promise<Interaction> {
+  async createInteraction(data: Record<string, unknown>): Promise<Interaction> {
     const snakeData = this.toSnakeCase(data);
     return this.request<Interaction>('/interactions', { method: 'POST', body: JSON.stringify(snakeData) });
   }
@@ -184,7 +184,28 @@ class ApiService {
     session_id: string;
     success: boolean;
     error?: string;
-    interaction?: Interaction;
+    interaction?: {
+      hcpId?: string;
+      hcp_id?: string;
+      hcpName?: string;
+      hcp_name?: string;
+      hcpSpecialty?: string;
+      hcp_specialty?: string;
+      hcpInstitution?: string;
+      hcp_institution?: string;
+      type: string;
+      dateTime?: string;
+      date_time?: string;
+      topics?: string[];
+      attendees?: string[];
+      sentiment?: string;
+      outcome?: string;
+      notes?: string;
+      status?: string;
+      message?: string;
+      materials?: Array<string | { id: string; name: string; type: string; description?: string }>;
+    };
+    aiSuggestions?: Array<{ id?: string; description: string; type?: string; dueInDays?: number; dueDate?: string; priority?: string }>;
   }> {
     return this.request<{
       message: string;
@@ -193,7 +214,28 @@ class ApiService {
       session_id: string;
       success: boolean;
       error?: string;
-      interaction?: Interaction;
+      interaction?: {
+        hcpId?: string;
+        hcp_id?: string;
+        hcpName?: string;
+        hcp_name?: string;
+        hcpSpecialty?: string;
+        hcp_specialty?: string;
+        hcpInstitution?: string;
+        hcp_institution?: string;
+        type: string;
+        dateTime?: string;
+        date_time?: string;
+        topics?: string[];
+        attendees?: string[];
+        sentiment?: string;
+        outcome?: string;
+        notes?: string;
+        status?: string;
+        message?: string;
+      materials?: Array<string | { id: string; name: string; type: string; description?: string }>;
+      };
+    aiSuggestions?: Array<{ id?: string; description: string; type?: string; dueInDays?: number; dueDate?: string; priority?: string }>;
     }>('/agent/chat', {
       method: 'POST',
       body: JSON.stringify({ message, session_id: sessionId, user_id: userId, form_data: formData }),
@@ -202,6 +244,10 @@ class ApiService {
 
   async getChatHistory(sessionId: string, limit = 20): Promise<{ messages: unknown[]; count: number }> {
     return this.request<{ messages: unknown[]; count: number }>(`/agent/history/${sessionId}?limit=${limit}`);
+  }
+
+  async getSessionEntities(sessionId: string): Promise<{ entities: Record<string, unknown> }> {
+    return this.request<{ entities: Record<string, unknown> }>(`/agent/session/${sessionId}/entities`);
   }
 }
 

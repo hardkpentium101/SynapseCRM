@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from typing import Optional, List
 from datetime import datetime
 from enum import Enum
@@ -232,6 +232,19 @@ class InteractionDetailResponse(InteractionBase):
 
     class Config:
         from_attributes = True
+
+    @field_validator("materials", mode="before")
+    @classmethod
+    def unwrap_interaction_materials(cls, v):
+        if v:
+            cleaned = [im for im in v if im is not None]
+            if not cleaned:
+                return []
+            if hasattr(cleaned[0], "material"):
+                materials = [im.material for im in cleaned if im.material is not None]
+                return materials
+            return cleaned
+        return v
 
 
 class InteractionListResponse(InteractionBase):

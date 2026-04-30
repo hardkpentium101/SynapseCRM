@@ -6,12 +6,13 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 from sqlalchemy import select, or_, and_
 from sqlalchemy.orm import selectinload
+import json
 import logging
 
 logger = logging.getLogger(__name__)
 
 try:
-    from src.db.models import HCP, Interaction, FollowUp, User, Material
+    from src.db.models import HCP, Interaction, FollowUp, User, Material, AuditLog, InteractionMaterial
     from src.db.database import async_session_maker
     from src.agent.services.async_runner import run_async
 
@@ -35,16 +36,11 @@ class HCPService:
         async def _search():
             try:
                 async with async_session_maker() as session:
-                    query_lower = query.lower()
-
                     stmt = select(HCP).where(
                         or_(
                             HCP.name.ilike(f"%{query}%"),
-                            HCP.name.ilike(f"%{query_lower}%"),
                             HCP.specialty.ilike(f"%{query}%"),
                             HCP.institution.ilike(f"%{query}%"),
-                            HCP.name.ilike(f"%{query_lower}%"),
-                            HCP.name.ilike(f"{query_lower}%"),
                         )
                     )
                     if user_id:
@@ -81,12 +77,10 @@ class HCPService:
             try:
                 async with async_session_maker() as session:
                     search_term = f"%{query}%"
-                    query_lower = query.lower()
 
                     stmt = select(HCP).where(
                         or_(
                             HCP.name.ilike(search_term),
-                            HCP.name.ilike(f"%{query_lower}%"),
                             HCP.specialty.ilike(search_term),
                             HCP.institution.ilike(search_term),
                         )
@@ -255,6 +249,7 @@ class InteractionService:
         outcome: str = None,
         attendees: List[str] = None,
         notes: str = None,
+        materials: List[str] = None,
     ) -> Dict:
         if not DB_AVAILABLE:
             return {"error": "Database not available", "created": False}
@@ -281,6 +276,29 @@ class InteractionService:
                         attendees=attendees or [],
                     )
                     session.add(interaction)
+                    await session.flush()
+
+                    material_records = []
+                    if materials:
+                        for mat_name in materials:
+                            stmt = select(Material).where(
+                                Material.name.ilike(mat_name)
+                            )
+                            result = await session.execute(stmt)
+                            mat = result.scalar_one_or_none()
+                            if mat:
+                                link = InteractionMaterial(
+                                    interaction_id=interaction.id,
+                                    material_id=mat.id,
+                                )
+                                session.add(link)
+                                material_records.append({
+                                    "id": str(mat.id),
+                                    "name": mat.name,
+                                    "type": mat.type,
+                                    "description": mat.description,
+                                })
+
                     await session.commit()
                     await session.refresh(interaction)
                     return {
@@ -295,6 +313,7 @@ class InteractionService:
                         "outcome": interaction.outcome,
                         "attendees": interaction.attendees,
                         "notes": None,
+                        "materials": material_records,
                     }
             except Exception as e:
                 logger.error(f"DB create interaction error: {e}")
@@ -374,6 +393,117 @@ class InteractionService:
                 raise
 
         return run_async(_get())
+
+    @staticmethod
+    def get_last_interaction(user_id: str = "default", limit: int = 1) -> Optional[Dict]:
+        if not DB_AVAILABLE:
+            return None
+
+        async def _get():
+            try:
+                async with async_session_maker() as session:
+                    stmt = (
+                        select(Interaction)
+                        .options(selectinload(Interaction.hcp))
+                        .where(Interaction.user_id == user_id)
+                        .order_by(Interaction.date_time.desc())
+                        .limit(limit)
+                    )
+                    result = await session.execute(stmt)
+                    interactions = result.scalars().all()
+                    if not interactions:
+                        return None
+                    i = interactions[0]
+                    return {
+                        "id": str(i.id),
+                        "hcp_id": str(i.hcp_id),
+                        "hcp_name": i.hcp.name if i.hcp else None,
+                        "hcp_specialty": i.hcp.specialty if i.hcp else None,
+                        "hcp_institution": i.hcp.institution if i.hcp else None,
+                        "type": i.type,
+                        "date_time": i.date_time.isoformat() if i.date_time else None,
+                        "topics": i.topics,
+                        "sentiment": i.sentiment,
+                        "outcome": i.outcome,
+                        "attendees": i.attendees,
+                    }
+            except Exception as e:
+                logger.error(f"DB get last interaction error: {e}")
+                return None
+
+        return run_async(_get())
+
+    @staticmethod
+    def update_interaction(
+        interaction_id: str,
+        fields: Dict[str, Any],
+        reason: str = "User-initiated update",
+        user_id: str = "default",
+    ) -> Dict:
+        if not DB_AVAILABLE:
+            return {"error": "Database not available", "updated": False}
+
+        async def _update():
+            try:
+                async with async_session_maker() as session:
+                    stmt = select(Interaction).where(Interaction.id == interaction_id)
+                    result = await session.execute(stmt)
+                    interaction = result.scalar_one_or_none()
+                    if not interaction:
+                        return {"error": f"Interaction {interaction_id} not found", "updated": False}
+
+                    old_values = {
+                        "hcp_id": str(interaction.hcp_id),
+                        "type": interaction.type,
+                        "date_time": interaction.date_time.isoformat() if interaction.date_time else None,
+                        "topics": interaction.topics,
+                        "sentiment": interaction.sentiment,
+                        "outcome": interaction.outcome,
+                    }
+
+                    for field, value in fields.items():
+                        if hasattr(interaction, field):
+                            if field == "topics":
+                                setattr(interaction, field, ",".join(value) if value else None)
+                            elif field == "date_time":
+                                try:
+                                    setattr(interaction, field, datetime.fromisoformat(value.replace("Z", "+00:00")))
+                                except Exception:
+                                    pass
+                            else:
+                                setattr(interaction, field, value)
+
+                    await session.commit()
+                    await session.refresh(interaction)
+
+                    audit_log = AuditLog(
+                        entity_type="interaction",
+                        entity_id=interaction_id,
+                        action="update",
+                        user_id=user_id,
+                        old_values=json.dumps(old_values),
+                        new_values=json.dumps(fields),
+                        reason=reason,
+                    )
+                    session.add(audit_log)
+                    await session.commit()
+
+                    return {
+                        "success": True,
+                        "id": str(interaction.id),
+                        "hcp_id": str(interaction.hcp_id),
+                        "type": interaction.type,
+                        "date_time": interaction.date_time.isoformat() if interaction.date_time else None,
+                        "topics": interaction.topics,
+                        "sentiment": interaction.sentiment,
+                        "outcome": interaction.outcome,
+                        "audit_logged": True,
+                    }
+            except Exception as e:
+                logger.error(f"DB update interaction error: {e}")
+                return {"error": str(e), "updated": False}
+
+        return run_async(_update())
 
 
 class FollowUpService:
@@ -506,13 +636,9 @@ class MaterialService:
             try:
                 async with async_session_maker() as session:
                     search_term = f"%{query}%"
-                    query_lower = query.lower()
 
                     stmt = select(Material).where(
-                        or_(
-                            Material.name.ilike(search_term),
-                            Material.name.ilike(f"%{query_lower}%"),
-                        )
+                        Material.name.ilike(search_term)
                     )
                     stmt = stmt.limit(limit)
                     result = await session.execute(stmt)

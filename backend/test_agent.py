@@ -145,3 +145,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+    from src.agent.langsmith.tracing import wait_for_all_tracers
+    wait_for_all_tracers()

@@ -17,15 +17,15 @@ class EntityExtractorAgent(BaseAgent):
         config = AGENT_CONFIGS["entity_extractor"]
         super().__init__(config, llm_manager, model_selector)
 
-    def process(self, input: str, context: Dict[str, Any] = None) -> ExtractedEntities:
+    def process(self, user_input: str, context: Dict[str, Any] = None) -> ExtractedEntities:
         """Extract entities from user input"""
-        messages = self._build_messages(input, context)
+        messages = self._build_messages(user_input, context)
 
         # Add JSON format instruction
         messages.append(
             {
                 "role": "system",
-                "content": 'Return ONLY valid JSON matching this schema: {"hcp_name":null,"hcp_specialty":null,"hcp_institution":null,"hcp_id":null,"interaction_type":null,"date_time":null,"sentiment":null,"topics":[],"attendees":[],"materials":[],"follow_up_type":null,"follow_up_due":null}',
+                "content": 'Return ONLY valid JSON matching this schema: {"hcp_name":null,"hcp_specialty":null,"hcp_institution":null,"hcp_id":null,"interaction_type":null,"date_time":null,"sentiment":null,"topics":[],"attendees":[],"materials":[],"outcome":null,"follow_up_type":null,"follow_up_due":null}',
             }
         )
 
@@ -37,10 +37,10 @@ class EntityExtractorAgent(BaseAgent):
         return ExtractedEntities()
 
     def extract_with_raw(
-        self, input: str, context: Dict[str, Any] = None
+        self, user_input: str, context: Dict[str, Any] = None
     ) -> Dict[str, Any]:
         """Extract entities with raw model response"""
-        entities = self.process(input, context)
+        entities = self.process(user_input, context)
         return {
             "entities": entities,
             "raw_json": entities.model_dump_json()

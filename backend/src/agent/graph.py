@@ -5,29 +5,24 @@ This file is loaded by LangGraph SDK / LangSmith for visualization.
 Can be loaded as: src.agent.graph.graph
 """
 
-import sys
-from pathlib import Path
-
-# Ensure we can import the modules correctly
-_file = Path(__file__).resolve()
-_backend_src = _file.parent.parent
-_backend = _backend_src.parent
-
-# Add paths
-if str(_backend_src) not in sys.path:
-    sys.path.insert(0, str(_backend_src))
-if str(_backend) not in sys.path:
-    sys.path.insert(0, str(_backend))
-
-# Now import using absolute imports from backend root
-from src.agent.langgraph.state import AgentState, initial_state
-from src.agent.langgraph.nodes import (
-    intent_classifier_node,
-    entity_extractor_node,
-    orchestrator_node,
-    format_response_node,
-    should_continue,
-)
+try:
+    from .langgraph.state import AgentState, initial_state
+    from .langgraph.nodes import (
+        intent_classifier_node,
+        entity_extractor_node,
+        orchestrator_node,
+        format_response_node,
+        should_continue,
+    )
+except ImportError:
+    from src.agent.langgraph.state import AgentState, initial_state
+    from src.agent.langgraph.nodes import (
+        intent_classifier_node,
+        entity_extractor_node,
+        orchestrator_node,
+        format_response_node,
+        should_continue,
+    )
 from langgraph.graph import StateGraph, END
 
 # Build the graph

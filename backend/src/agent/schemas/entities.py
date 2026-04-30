@@ -19,6 +19,7 @@ class ExtractedEntities(BaseModel):
     topics: List[str] = Field(default_factory=list)
     attendees: List[str] = Field(default_factory=list)
     materials: List[str] = Field(default_factory=list)  # material names shared
+    outcome: Optional[str] = None  # result/summary of interaction
     follow_up_type: Optional[str] = None  # call, meeting, email
     follow_up_due: Optional[str] = None  # ISO format
 
@@ -29,6 +30,8 @@ class ExtractedEntities(BaseModel):
 
         try:
             data = json.loads(json_str) if isinstance(json_str, str) else json_str
+            if data is None:
+                return cls()
             return cls(**{k: v for k, v in data.items() if v is not None})
         except (json.JSONDecodeError, TypeError):
             return cls()

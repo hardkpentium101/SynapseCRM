@@ -4,12 +4,14 @@ import { api } from '../../services/api';
 
 interface MaterialsState {
   items: Material[];
+  searchResults: Material[];
   loading: boolean;
   error: string | null;
 }
 
 const initialState: MaterialsState = {
   items: [],
+  searchResults: [],
   loading: false,
   error: null,
 };
@@ -53,8 +55,11 @@ const materialsSlice = createSlice({
         state.loading = false;
         state.error = action.payload as string;
       })
+      .addCase(searchMaterials.pending, (state) => {
+        state.searchResults = [];
+      })
       .addCase(searchMaterials.fulfilled, (state, action: PayloadAction<Material[]>) => {
-        state.items = action.payload;
+        state.searchResults = action.payload;
       });
   },
 });

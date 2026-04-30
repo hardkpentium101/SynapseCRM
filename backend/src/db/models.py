@@ -38,12 +38,12 @@ class GUID(TypeDecorator):
     def process_bind_param(self, value, dialect):
         if value is not None:
             return str(value)
-        return str(uuid.uuid4())
+        return None
 
     def process_result_value(self, value, dialect):
         if value is not None:
             return uuid.UUID(value)
-        return uuid.uuid4()
+        return None
 
 
 class User(Base):
@@ -173,3 +173,19 @@ class FollowUp(Base):
     interaction = relationship("Interaction", back_populates="follow_ups")
     assignee = relationship("User", foreign_keys=[assignee_id])
     creator = relationship("User", foreign_keys=[created_by])
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    entity_type = Column(String(50), nullable=False)
+    entity_id = Column(String(36), nullable=False)
+    action = Column(String(50), nullable=False)
+    user_id = Column(String(36), ForeignKey("users.id"))
+    old_values = Column(Text)
+    new_values = Column(Text)
+    reason = Column(Text)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    user = relationship("User")

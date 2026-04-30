@@ -3,140 +3,216 @@ LangSmith Integration - Tracing and visualization for LangGraph
 """
 
 import os
-from typing import Optional, Dict, Any
+import time
+from typing import Optional, Dict, Any, Callable
 from functools import wraps
 
-import os
+from ...config import get_settings
+
+LANGSMITH_AVAILABLE = False
+_langsmith_traceable = None
+_langsmith_client: Optional[Any] = None
+
+try:
+    from langsmith import traceable as _ls_traceable
+    from langsmith import Client
+    _langsmith_traceable = _ls_traceable
+    LANGSMITH_AVAILABLE = True
+except ImportError:
+    pass
+
+_initialized = False
 
 
 def setup_langsmith():
-    """Setup LangSmith tracing if API key is available"""
-    langsmith_api_key = os.getenv("LANGSMITH_API_KEY")
+    """Setup LangSmith tracing if API key is available. Idempotent."""
+    global _initialized
+    if _initialized:
+        return _initialized
+
+    settings = get_settings()
+    langsmith_api_key = os.getenv("LANGSMITH_API_KEY") or settings.LANGSMITH_API_KEY
 
     if not langsmith_api_key:
-        print("⚠ LangSmith API key not set. Set LANGSMITH_API_KEY to enable tracing.")
-        return None
+        return False
+
+    os.environ["LANGCHAIN_TRACING_V2"] = "true"
+    os.environ["LANGCHAIN_API_KEY"] = langsmith_api_key
+    os.environ["LANGCHAIN_PROJECT"] = os.getenv("LANGSMITH_PROJECT", "hcp-agent")
+    _initialized = True
+    return True
+
+
+def is_tracing_enabled() -> bool:
+    """Check if tracing is available and enabled."""
+    return LANGSMITH_AVAILABLE and _initialized
+
+
+def _get_langsmith_client():
+    """Get or create a cached LangSmith client."""
+    global _langsmith_client
+    if _langsmith_client is None:
+        _langsmith_client = Client()
+    return _langsmith_client
+
+
+def emit_llm_call(
+    model: str,
+    messages: list,
+    response_content: Optional[str],
+    usage: Optional[Dict[str, int]],
+    latency_ms: float,
+    tool_calls: Optional[list] = None,
+):
+    """Emit a trace for an LLM call using the LangSmith client."""
+    if not is_tracing_enabled():
+        return
 
     try:
-        from langsmith import Client
-        from langchain_core.tracers import LangSmithTracer
-
-        os.environ["LANGCHAIN_TRACING_V2"] = "true"
-        os.environ["LANGCHAIN_API_KEY"] = langsmith_api_key
-        os.environ["LANGCHAIN_PROJECT"] = os.getenv("LANGSMITH_PROJECT", "hcp-agent")
-
-        client = Client(api_key=langsmith_api_key)
-        tracer = LangSmithTracer()
-
-        print(
-            f"✓ LangSmith tracing enabled for project: {os.getenv('LANGSMITH_PROJECT', 'hcp-agent')}"
+        client = _get_langsmith_client()
+        is_local = model.startswith("localhost") or model.startswith("http://") or model.startswith("file://")
+        client.create_run(
+            name=f"llm:{model}",
+            run_type="llm",
+            inputs={
+                "model": model,
+                "message_count": len(messages),
+                "has_tool_calls": bool(tool_calls),
+            },
+            outputs={
+                "content": response_content[:500] if response_content else "",
+                "usage": usage or {},
+                "latency_ms": latency_ms,
+            },
+            tags=["llm-call", model],
+            metadata={
+                "agent": "hcp-agent",
+                "ls_model_name": model,
+                "is_local_model": is_local,
+            },
         )
+    except Exception:
+        pass
 
-        return {
-            "client": client,
-            "tracer": tracer,
-            "project": os.getenv("LANGSMITH_PROJECT", "hcp-agent"),
-        }
-    except ImportError:
-        print("⚠ langsmith package not installed. Run: pip install langsmith")
-        return None
-    except Exception as e:
-        print(f"⚠ LangSmith setup failed: {e}")
-        return None
+
+def emit_tool_call(tool_name: str, arguments: Dict[str, Any], result: Any):
+    """Emit a trace for a tool execution."""
+    if not is_tracing_enabled():
+        return
+
+    try:
+        client = _get_langsmith_client()
+        client.create_run(
+            name=f"tool:{tool_name}",
+            run_type="tool",
+            inputs={"arguments": arguments},
+            outputs={"result_preview": _safe_trunc(result, 500)},
+            tags=["tool-call", tool_name],
+            metadata={"agent": "hcp-agent"},
+        )
+    except Exception:
+        pass
+
+
+def emit_graph_node(node_name: str, inputs: Dict[str, Any], outputs: Dict[str, Any]):
+    """Emit a trace for a LangGraph node execution."""
+    if not is_tracing_enabled():
+        return
+
+    try:
+        client = _get_langsmith_client()
+        client.create_run(
+            name=f"node:{node_name}",
+            run_type="chain",
+            inputs={k: _safe_str(v) for k, v in inputs.items()},
+            outputs={k: _safe_str(v) for k, v in outputs.items()},
+            tags=["langgraph-node", node_name],
+            metadata={"agent": "hcp-agent"},
+        )
+    except Exception:
+        pass
+
+
+def _safe_str(v: Any) -> str:
+    """Convert value to string safely (truncate if needed)."""
+    s = str(v)
+    if len(s) > 1000:
+        return s[:1000] + "..."
+    return s
+
+
+def _safe_trunc(v: Any, max_len: int) -> str:
+    s = str(v)
+    if len(s) > max_len:
+        return s[:max_len] + "..."
+    return s
 
 
 def traceable(name: str = None, tags: list = None):
     """
-    Decorator to trace a function with LangSmith
+    Decorator to trace a function with LangSmith.
 
     Usage:
         @traceable(name="intent-classifier")
         def classify_intent(text):
             ...
     """
+    if not LANGSMITH_AVAILABLE:
+        def passthrough(func):
+            return func
+        return passthrough
 
-    def decorator(func):
+    def decorator(func: Callable):
+        @_langsmith_traceable(name=name or func.__name__, tags=tags or ["hcp-agent"])
         @wraps(func)
         def wrapper(*args, **kwargs):
-            langsmith_config = setup_langsmith()
-
-            if langsmith_config:
-                try:
-                    tracer = langsmith_config["tracer"]
-                    with tracer.trace(name=name or func.__name__) as run:
-                        result = func(*args, **kwargs)
-                        run.end(outputs={"result": str(result)[:1000]})
-                        return result
-                except Exception as e:
-                    print(f"LangSmith tracing error: {e}")
-
             return func(*args, **kwargs)
-
         return wrapper
-
     return decorator
 
 
 class LangSmithTracer:
-    """Wrapper for LangSmith tracing"""
+    """Wrapper for LangSmith tracing (backward compat)."""
 
     def __init__(self):
-        self.config = setup_langsmith()
-        self.enabled = self.config is not None
+        self.enabled = is_tracing_enabled()
 
-    def trace_node(
-        self, node_name: str, inputs: Dict[str, Any], outputs: Dict[str, Any] = None
-    ):
-        """Trace a graph node execution"""
-        if not self.enabled:
-            return
-
-        try:
-            from langchain_core.tracers import LangSmithTracer
-
-            tracer = self.config["tracer"]
-            with tracer.trace(
-                name=node_name,
-                tags=["langgraph", "hcp-agent"],
-                metadata={"agent": "hcp-agent"},
-            ) as run:
-                run.end(outputs=outputs or {})
-        except Exception as e:
-            print(f"Tracing error: {e}")
+    def trace_node(self, node_name: str, inputs: Dict[str, Any], outputs: Dict[str, Any] = None):
+        emit_graph_node(node_name, inputs, outputs or {})
 
     def trace_tool_call(self, tool_name: str, arguments: Dict[str, Any], result: Any):
-        """Trace a tool call"""
-        if not self.enabled:
-            return
-
-        self.trace_node(
-            node_name=f"tool:{tool_name}",
-            inputs={"arguments": arguments},
-            outputs={"result": str(result)[:500]},
-        )
+        emit_tool_call(tool_name, arguments, result)
 
     def trace_llm_call(self, model: str, prompt: str, response: str):
-        """Trace an LLM call"""
-        if not self.enabled:
-            return
-
-        self.trace_node(
-            node_name=f"llm:{model}",
-            inputs={"prompt_length": len(prompt)},
-            outputs={
-                "response_length": len(response),
-                "response_preview": response[:200],
-            },
-        )
+        emit_llm_call(model, [{"content": prompt}], response, {}, 0)
 
 
-# Singleton tracer instance
-_langsmith_tracer: Optional[LangSmithTracer] = None
+_langsmith_tracer: Optional["LangSmithTracer"] = None
 
 
-def get_tracer() -> Optional[LangSmithTracer]:
-    """Get or create LangSmith tracer"""
+def get_tracer() -> Optional["LangSmithTracer"]:
+    """Get or create LangSmith tracer."""
     global _langsmith_tracer
     if _langsmith_tracer is None:
         _langsmith_tracer = LangSmithTracer()
     return _langsmith_tracer if _langsmith_tracer.enabled else None
+
+
+def wait_for_all_tracers(timeout: float = 10.0):
+    """
+    Flush all pending traces to LangSmith.
+
+    Call this at the end of short scripts before process exit to ensure
+    traces are sent. Equivalent to langchain's wait_for_all_tracers().
+
+    Args:
+        timeout: Maximum seconds to wait for flush to complete.
+    """
+    if not LANGSMITH_AVAILABLE:
+        return
+
+    try:
+        client = Client()
+        client.flush(timeout=timeout)
+    except Exception:
+        pass

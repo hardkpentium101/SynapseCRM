@@ -24,12 +24,7 @@ async def get_materials(
 
     if search:
         search_term = f"%{search}%"
-        query = query.where(
-            or_(
-                Material.name.ilike(search_term),
-                Material.description.ilike(search_term),
-            )
-        )
+        query = query.where(Material.name.ilike(search_term))
 
     query = query.offset(skip).limit(limit).order_by(Material.name)
     result = await db.execute(query)

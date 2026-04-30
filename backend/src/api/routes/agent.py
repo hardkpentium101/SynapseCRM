@@ -2,14 +2,13 @@
 Agent API Routes - FastAPI endpoints for the agent
 """
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import uuid
 
-from ...agent.main import HCPAgent
-from ...agent.llm_manager import get_llm_manager, GroqLLMManager
+from ...agent.main import HCPAgent, get_hcp_agent
 from ...agent.memory import get_memory
 from ...agent.langsmith import setup_langsmith
 from ...agent.langgraph import (
@@ -37,6 +36,7 @@ class ChatResponse(BaseModel):
     success: bool
     error: Optional[str] = None
     interaction: Optional[Dict[str, Any]] = None
+    ai_suggestions: Optional[List[Dict[str, Any]]] = None
 
 
 class HistoryResponse(BaseModel):
@@ -49,18 +49,64 @@ class SessionCreateResponse(BaseModel):
     user_id: str
 
 
-# Singleton agent instance
-_agent_instance: Optional[HCPAgent] = None
-
-
 def get_agent() -> HCPAgent:
-    """Get or create agent instance"""
-    global _agent_instance
-    if _agent_instance is None:
-        setup_langsmith()
-        llm = get_llm_manager()
-        _agent_instance = HCPAgent(llm)
-    return _agent_instance
+    """Get the shared HCPAgent singleton"""
+    setup_langsmith()
+    return get_hcp_agent()
+
+
+_ENRICHMENT_KEYS = [
+    "hcp_id", "hcp_name", "hcp_specialty", "hcp_institution",
+    "topics", "sentiment", "outcome", "attendees", "date_time", "materials",
+]
+
+
+def _extract_ai_suggestions(tool_results: list) -> List[Dict[str, Any]]:
+    """Extract AI follow-up suggestions from tool results."""
+    suggestions = []
+    for tr in tool_results:
+        if tr.get("tool_name") == "suggest_follow_up_actions":
+            data = tr.get("data", {})
+            if data.get("success") and data.get("suggestions"):
+                suggestions = data["suggestions"]
+            break
+    return suggestions
+
+
+def _build_interaction_data(tool_results: list, entities: dict, form_data: dict = None) -> Optional[Dict[str, Any]]:
+    """Build interaction data from tool results and enriched entities."""
+    interaction_data = None
+
+    for tr in tool_results:
+        tool_name = tr.get("tool_name")
+        if tool_name == "create_interaction" and tr.get("success"):
+            interaction_data = tr.get("data", {}).copy()
+            break
+        if tool_name == "update_interaction" and tr.get("success"):
+            interaction_data = tr.get("data", {}).copy()
+            break
+
+    if not interaction_data:
+        if not entities.get("hcp_id"):
+            return None
+        interaction_data = {
+            "hcp_id": entities.get("hcp_id"),
+            "type": "meeting",
+        }
+
+    for key in _ENRICHMENT_KEYS:
+        if entities.get(key):
+            interaction_data[key] = entities[key]
+
+    if form_data:
+        for key in _ENRICHMENT_KEYS:
+            if form_data.get(key) and not interaction_data.get(key):
+                interaction_data[key] = form_data[key]
+
+    if "type" not in interaction_data:
+        interaction_data["type"] = entities.get("type") or "meeting"
+
+    return interaction_data
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -68,11 +114,9 @@ async def chat(request: ChatRequest):
     """Process a chat message"""
     agent = get_agent()
 
-    # Use provided session_id or create new one
     session_id = request.session_id or str(uuid.uuid4())
     user_id = request.user_id or "default"
 
-    # Check if session exists, if not create it
     memory = get_memory()
     session = memory.get_session(session_id)
     if not session:
@@ -87,39 +131,8 @@ async def chat(request: ChatRequest):
             form_data=request.form_data,
         )
 
-        interaction_data = None
-        if result.tool_results:
-            for tr in result.tool_results:
-                if tr.get("tool_name") == "create_interaction" and tr.get("success"):
-                    interaction_data = tr.get("data", {})
-
-                    enriched_entities = result.entities
-
-                    if enriched_entities.get("hcp_id"):
-                        interaction_data["hcp_id"] = enriched_entities["hcp_id"]
-                    if enriched_entities.get("hcp_name"):
-                        interaction_data["hcp_name"] = enriched_entities["hcp_name"]
-                    if enriched_entities.get("hcp_specialty"):
-                        interaction_data["hcp_specialty"] = enriched_entities[
-                            "hcp_specialty"
-                        ]
-                    if enriched_entities.get("hcp_institution"):
-                        interaction_data["hcp_institution"] = enriched_entities[
-                            "hcp_institution"
-                        ]
-
-                    if enriched_entities.get("topics"):
-                        interaction_data["topics"] = enriched_entities["topics"]
-                    if enriched_entities.get("sentiment"):
-                        interaction_data["sentiment"] = enriched_entities["sentiment"]
-                    if enriched_entities.get("outcome"):
-                        interaction_data["outcome"] = enriched_entities["outcome"]
-                    if enriched_entities.get("attendees"):
-                        interaction_data["attendees"] = enriched_entities["attendees"]
-                    if enriched_entities.get("date_time"):
-                        interaction_data["date_time"] = enriched_entities["date_time"]
-                    if enriched_entities.get("materials"):
-                        interaction_data["materials"] = enriched_entities["materials"]
+        interaction_data = _build_interaction_data(result.tool_results, result.entities, request.form_data)
+        ai_suggestions = _extract_ai_suggestions(result.tool_results)
 
         return ChatResponse(
             message=result.message,
@@ -129,6 +142,7 @@ async def chat(request: ChatRequest):
             success=result.success,
             error=result.error,
             interaction=interaction_data,
+            ai_suggestions=ai_suggestions if ai_suggestions else None,
         )
 
     except Exception as e:
@@ -169,12 +183,23 @@ async def clear_session(session_id: str):
     return {"success": True, "message": "Session cleared"}
 
 
+@router.get("/session/{session_id}/entities")
+async def get_session_entities(session_id: str):
+    """Get session entity data"""
+    memory = get_memory()
+    session = memory.get_session(session_id)
+    if not session:
+        return {"entities": {}}
+
+    extracted = memory.get_entities(session_id)
+    return {"entities": extracted.model_dump() if extracted else {}}
+
+
 @router.get("/health")
 async def health_check():
     """Check agent health"""
     try:
         agent = get_agent()
-        # Try to get available models
         models = agent.llm.list_models()
         return {
             "status": "healthy",

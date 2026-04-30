@@ -1,53 +1,27 @@
 import { useState, useEffect, useRef } from 'react';
-import {
-  Search,
-  Plus,
-  X,
-  Mic,
-  Sparkles,
-  Check,
-  Trash2,
-  Users,
-  FileText,
-  Package,
-  MessageSquare,
-  ThumbsUp,
-  ThumbsDown,
-  Minus,
-} from 'lucide-react';
+import { useAppDispatch, useAppSelector } from '../../app/hooks';
+import { updateFormField, resetForm, loadSessionEntities, setSessionId, removeAttendee, removeMaterial, removeSample, setSentiment, addAttendee, addMaterial, addSample, clearDirty, setHCP, createInteraction } from './interactionsSlice';
+import { createFollowUp, removeSuggestion } from '../followUps/followUpsSlice';
+import { addFollowUpAction } from '../chat/chatSlice';
+import { searchHCPs, fetchHCPs } from '../hcps/hcpsSlice';
+import { fetchMaterials, searchMaterials } from '../materials/materialsSlice';
+import { fetchSamples, searchSamples } from '../samples/samplesSlice';
+import { useClickOutside } from '../../hooks/useClickOutside';
+import type { HCP, Material, Sample, Sentiment } from '../../types';
+import { Textarea } from '../../components/ui/textarea';
+import { Badge } from '../../components/ui/badge';
+import { X, Search, Plus, ThumbsUp, ThumbsDown, Minus, FileText, Mic, Sparkles, Package, Trash2, MessageSquare, Check, Users } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
-import { Textarea } from '../../components/ui/textarea';
 import { Select } from '../../components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
-import { Badge } from '../../components/ui/badge';
 import { ConfirmModal } from '../../components/ui/confirmModal';
-import { useAppDispatch, useAppSelector } from '../../app/hooks';
-import { useClickOutside } from '../../hooks/useClickOutside';
-import {
-  updateFormField,
-  setHCP,
-  setSentiment,
-  addAttendee,
-  removeAttendee,
-  addMaterial,
-  removeMaterial,
-  addSample,
-  removeSample,
-  resetForm,
-  clearDirty,
-  createInteraction,
-} from './interactionsSlice';
-import { searchHCPs, fetchHCPs } from '../hcps/hcpsSlice';
-import { fetchMaterials } from '../materials/materialsSlice';
-import { searchSamples, fetchSamples } from '../samples/samplesSlice';
-import type { HCP, Material, Sample, Sentiment, InteractionType } from '../../types';
 
-const INTERACTION_TYPES: { value: InteractionType; label: string }[] = [
+const INTERACTION_TYPES = [
   { value: 'meeting', label: 'Meeting' },
   { value: 'call', label: 'Phone Call' },
-  { value: 'conference', label: 'Conference' },
   { value: 'email', label: 'Email' },
+  { value: 'conference', label: 'Conference' },
 ];
 
 const SENTIMENTS: { value: Sentiment; label: string; icon: React.ReactNode; color: string }[] = [
@@ -59,8 +33,8 @@ const SENTIMENTS: { value: Sentiment; label: string; icon: React.ReactNode; colo
 export function InteractionForm() {
   const dispatch = useAppDispatch();
   const { formData, dirty } = useAppSelector((state) => state.interactions);
-  const { searchResults } = useAppSelector((state) => state.hcps);
-  const { items: materials } = useAppSelector((state) => state.materials);
+  const searchResults = useAppSelector((state) => state.hcps.searchResults);
+  const { items: materials, searchResults: materialSearchResults } = useAppSelector((state) => state.materials);
   const { suggestions } = useAppSelector((state) => state.followUps);
   const { user } = useAppSelector((state) => state.auth);
   const { searchResults: sampleSearchResults } = useAppSelector((state) => state.samples);
@@ -68,6 +42,7 @@ export function InteractionForm() {
   const [hcpSearchOpen, setHcpSearchOpen] = useState(false);
   const [hcpSearchQuery, setHcpSearchQuery] = useState('');
   const [materialSearchOpen, setMaterialSearchOpen] = useState(false);
+  const [materialSearchQuery, setMaterialSearchQuery] = useState('');
   const [sampleSearchOpen, setSampleSearchOpen] = useState(false);
   const [sampleSearchQuery, setSampleSearchQuery] = useState('');
   const [selectedSample, setSelectedSample] = useState<Sample | null>(null);
@@ -88,6 +63,12 @@ export function InteractionForm() {
     dispatch(fetchHCPs());
     dispatch(fetchMaterials());
     dispatch(fetchSamples(undefined));
+    
+    const existingSessionId = sessionStorage.getItem('sessionId');
+    if (existingSessionId) {
+      dispatch(setSessionId(existingSessionId));
+      dispatch(loadSessionEntities(existingSessionId));
+    }
   }, [dispatch]);
 
   const handleNewInteraction = () => {
@@ -162,6 +143,15 @@ export function InteractionForm() {
   const handleAddMaterial = (material: Material) => {
     dispatch(addMaterial(material));
     setMaterialSearchOpen(false);
+    setMaterialSearchQuery('');
+  };
+
+  const handleMaterialSearch = (query: string) => {
+    setMaterialSearchQuery(query);
+    if (query.length >= 2) {
+      dispatch(searchMaterials(query));
+      setMaterialSearchOpen(true);
+    }
   };
 
   const handleSave = async () => {
@@ -169,6 +159,13 @@ export function InteractionForm() {
     
     setSaving(true);
     try {
+      const materialIds = (formData.materials || []).map((m) => m.id);
+      const samplePayloads = (formData.samples || []).map((s) => ({
+        product_name: s.productName,
+        lot_number: s.lotNumber,
+        quantity: s.quantity,
+      }));
+
       const interactionData = {
         hcpId: formData.hcpId,
         type: formData.type || 'meeting',
@@ -177,8 +174,8 @@ export function InteractionForm() {
         sentiment: formData.sentiment,
         outcome: formData.outcome,
         attendees: formData.attendees || [],
-        materials: formData.materials,
-        samples: formData.samples,
+        materialIds,
+        samples: samplePayloads,
       };
       
       await dispatch(createInteraction(interactionData)).unwrap();
@@ -187,6 +184,23 @@ export function InteractionForm() {
       console.error('Failed to save interaction:', error);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleApproveSuggestion = async (suggestion: (typeof suggestions)[0]) => {
+    await dispatch(createFollowUp({
+      description: suggestion.description,
+      type: suggestion.type,
+      dueDate: suggestion.dueDate,
+    })).unwrap();
+    dispatch(addFollowUpAction({ description: suggestion.description, status: 'approved' }));
+  };
+
+  const handleDeclineSuggestion = (suggestionId: string) => {
+    const suggestion = suggestions.find((s) => s.id === suggestionId);
+    dispatch(removeSuggestion(suggestionId));
+    if (suggestion) {
+      dispatch(addFollowUpAction({ description: suggestion.description, status: 'declined' }));
     }
   };
 
@@ -380,17 +394,15 @@ export function InteractionForm() {
               <div className="space-y-2">
                 <label className="text-sm font-medium">Materials Shared</label>
                 <div className="relative" ref={materialRef}>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start"
-                    onClick={() => setMaterialSearchOpen(!materialSearchOpen)}
-                  >
-                    <Search className="mr-2 h-4 w-4" />
-                    Search/Add Material
-                  </Button>
+                  <Input
+                    placeholder="Search materials by name..."
+                    value={materialSearchQuery}
+                    onChange={(e) => handleMaterialSearch(e.target.value)}
+                    onFocus={() => materialSearchQuery.length >= 2 && setMaterialSearchOpen(true)}
+                  />
                   {materialSearchOpen && (
                     <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md border bg-background py-1 shadow-lg">
-                      {materials.map((material) => (
+                      {(materialSearchResults.length > 0 ? materialSearchResults : materials).map((material) => (
                         <button
                           key={material.id}
                           className="w-full px-3 py-2 text-left text-sm hover:bg-accent"
@@ -402,6 +414,9 @@ export function InteractionForm() {
                           </div>
                         </button>
                       ))}
+                      {materialSearchQuery.length >= 2 && materialSearchResults.length === 0 && (
+                        <div className="px-3 py-2 text-sm text-muted-foreground">No materials found</div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -578,10 +593,10 @@ export function InteractionForm() {
                       >
                         <span className="text-sm">{suggestion.description}</span>
                         <div className="flex gap-2">
-                          <Button size="sm" variant="ghost">
+                          <Button size="sm" variant="ghost" onClick={() => handleApproveSuggestion(suggestion)}>
                             <Check className="h-4 w-4" />
                           </Button>
-                          <Button size="sm" variant="ghost">
+                          <Button size="sm" variant="ghost" onClick={() => handleDeclineSuggestion(suggestion.id)}>
                             <X className="h-4 w-4" />
                           </Button>
                         </div>

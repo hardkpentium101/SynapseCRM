@@ -5,6 +5,7 @@ import interactionsReducer from '../features/interactions/interactionsSlice';
 import materialsReducer from '../features/materials/materialsSlice';
 import samplesReducer from '../features/samples/samplesSlice';
 import followUpsReducer from '../features/followUps/followUpsSlice';
+import chatReducer from '../features/chat/chatSlice';
 import uiReducer from '../features/ui/uiSlice';
 
 export const store = configureStore({
@@ -15,6 +16,7 @@ export const store = configureStore({
     materials: materialsReducer,
     samples: samplesReducer,
     followUps: followUpsReducer,
+    chat: chatReducer,
     ui: uiReducer,
   },
 });

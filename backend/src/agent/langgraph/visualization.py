@@ -150,13 +150,13 @@ def get_flow_diagram_mermaid() -> str:
     return """```mermaid
 flowchart TD
     START([User Input]) --> INTENT[Intent Classifier]
-    INTENT --> |add_hcp, create_interaction, search_hcp, create_follow_up| EXTRACT[Entity Extractor]
-    INTENT --> |general_query, get_summary, unknown| ORCH[Orchestrator]
+    INTENT --> |add_hcp, create_interaction, update_interaction, search_hcp, create_follow_up, suggest_follow_up| EXTRACT[Entity Extractor]
+    INTENT --> |search_materials, general_query, get_summary, unknown| ORCH[Orchestrator]
     
     EXTRACT --> ORCH
     
     ORCH --> |tool calls| TOOLS
-    TOOLS[Tools: search_hcp, create_interaction, create_follow_up, ...]
+    TOOLS[Tools: search_hcp, create_interaction, update_interaction, suggest_follow_up_actions, search_materials, recommend_materials, ...]
     TOOLS --> RESPONSE[Format Response]
     
     ORCH --> |no tools| RESPONSE
