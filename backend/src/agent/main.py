@@ -218,10 +218,21 @@ class HCPAgent:
                 "conversation_history": self.memory.get_history(session_id, limit=20),
             }
 
-            # Step 4: Orchestrate response with tools
-            response_message, tool_results = self.orchestrator.process_with_tools(
-                user_input, context
-            )
+            # If intent is unknown, skip the LLM orchestrator entirely
+            if intent == "unknown":
+                response_message = (
+                    "I'm not sure what you'd like me to do. Here's what I can help with:\n"
+                    "1. Search for an HCP\n"
+                    "2. Record an interaction\n"
+                    "3. Create a follow-up\n"
+                    "4. Search materials"
+                )
+                tool_results = []
+            else:
+                # Step 4: Orchestrate response with tools
+                response_message, tool_results = self.orchestrator.process_with_tools(
+                    user_input, context
+                )
 
             # Step 4.5: Auto-generate follow-up suggestions after create_interaction
             for tr in tool_results:
@@ -247,11 +258,18 @@ class HCPAgent:
                             pass
                     break
 
-            emit_graph_node(
-                "orchestrator",
-                inputs={"user_input": user_input[:200], "intent": intent},
-                outputs={"response": response_message[:500], "tool_call_count": len(tool_results)},
-            )
+            if intent == "unknown":
+                emit_graph_node(
+                    "unknown_intent_handler",
+                    inputs={"user_input": user_input[:200]},
+                    outputs={"response": response_message[:500], "action": "skipped_orchestrator"},
+                )
+            else:
+                emit_graph_node(
+                    "orchestrator",
+                    inputs={"user_input": user_input[:200], "intent": intent},
+                    outputs={"response": response_message[:500], "tool_call_count": len(tool_results)},
+                )
 
             self.memory.add_message(session_id, "assistant", response_message)
 
