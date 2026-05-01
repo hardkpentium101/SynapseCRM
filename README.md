@@ -2,7 +2,6 @@
 
 **AI-Powered CRM for Pharmaceutical Field Representatives**
 
-[![Demo Video](https://img.youtube.com/vi/dQw4w9WgXcQ/0.jpg)](https://drive.google.com/file/d/1I5omEUK_6HC3B09uA3Z3XxfXOAaslrQo/view?usp=sharing)
 ▶️ [Watch Demo Video](https://drive.google.com/file/d/1I5omEUK_6HC3B09uA3Z3XxfXOAaslrQo/view?usp=sharing)
 
 An intelligent, conversational CRM system that transforms how healthcare professionals document field interactions. Using advanced natural language processing, SynapseCRM eliminates tedious manual data entry by automatically extracting, enriching, and organizing interaction details from casual conversation.
