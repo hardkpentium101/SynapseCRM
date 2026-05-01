@@ -157,6 +157,7 @@ export function ChatPlaceholder() {
 
             const followUp: FollowUp = {
               id: suggestion.id || crypto.randomUUID(),
+              interactionId: suggestion.interactionId || suggestion.interaction_id,
               description: suggestion.description,
               type: typeMap[suggestion.type || ''] || 'other',
               status: 'pending',

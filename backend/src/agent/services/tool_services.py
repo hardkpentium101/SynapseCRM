@@ -536,6 +536,7 @@ class FollowUpService:
                         type=type or "follow_up_meeting",
                         description=description,
                         due_date=parsed_due_date,
+                        assignee_id=user_id,
                         created_by=user_id,
                         ai_generated=True,
                     )

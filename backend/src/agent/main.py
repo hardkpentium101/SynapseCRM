@@ -221,11 +221,12 @@ class HCPAgent:
             # If intent is unknown, skip the LLM orchestrator entirely
             if intent == "unknown":
                 response_message = (
-                    "I'm not sure what you'd like me to do. Here's what I can help with:\n"
-                    "1. Search for an HCP\n"
-                    "2. Record an interaction\n"
-                    "3. Create a follow-up\n"
-                    "4. Search materials"
+                    "I'm not sure what you'd like me to do. Please describe your request in more detail.\n\n"
+                    "I can help with:\n"
+                    "- Search for healthcare professionals (HCPs)\n"
+                    "- Record interactions with HCPs\n"
+                    "- Create and manage follow-ups\n"
+                    "- Search and recommend materials"
                 )
                 tool_results = []
             else:

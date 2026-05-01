@@ -192,6 +192,7 @@ export function InteractionForm() {
       description: suggestion.description,
       type: suggestion.type,
       dueDate: suggestion.dueDate,
+      interactionId: suggestion.interactionId,
     })).unwrap();
     dispatch(addFollowUpAction({ description: suggestion.description, status: 'approved' }));
   };

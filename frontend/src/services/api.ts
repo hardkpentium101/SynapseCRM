@@ -165,7 +165,8 @@ class ApiService {
   }
 
   async createFollowUp(data: Partial<FollowUp>): Promise<FollowUp> {
-    return this.request<FollowUp>('/follow-ups', { method: 'POST', body: JSON.stringify(data) });
+    const snakeData = this.toSnakeCase(data);
+    return this.request<FollowUp>('/follow-ups', { method: 'POST', body: JSON.stringify(snakeData) });
   }
 
   async updateFollowUp(id: string, data: Partial<FollowUp>): Promise<FollowUp> {

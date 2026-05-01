@@ -62,13 +62,18 @@ _ENRICHMENT_KEYS = [
 
 
 def _extract_ai_suggestions(tool_results: list) -> List[Dict[str, Any]]:
-    """Extract AI follow-up suggestions from tool results."""
+    """Extract AI follow-up suggestions from tool results, injecting interaction_id."""
     suggestions = []
     for tr in tool_results:
         if tr.get("tool_name") == "suggest_follow_up_actions":
             data = tr.get("data", {})
             if data.get("success") and data.get("suggestions"):
-                suggestions = data["suggestions"]
+                interaction_id = data.get("interaction_id")
+                for suggestion in data["suggestions"]:
+                    suggestion = dict(suggestion)
+                    if interaction_id:
+                        suggestion["interaction_id"] = interaction_id
+                    suggestions.append(suggestion)
             break
     return suggestions
 
