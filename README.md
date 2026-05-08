@@ -1,10 +1,10 @@
-# 🧠 SynapseCRM
+# 🧠 HCPilot
 
 **AI-Powered CRM for Pharmaceutical Field Representatives**
 
 ▶️ [Watch Demo Video](https://drive.google.com/file/d/1I5omEUK_6HC3B09uA3Z3XxfXOAaslrQo/view?usp=sharing)
 
-An intelligent, conversational CRM system that transforms how healthcare professionals document field interactions. Using advanced natural language processing, SynapseCRM eliminates tedious manual data entry by automatically extracting, enriching, and organizing interaction details from casual conversation.
+An intelligent, conversational CRM system that transforms how healthcare professionals document field interactions. Using advanced natural language processing, HCPilot eliminates tedious manual data entry by automatically extracting, enriching, and organizing interaction details from casual conversation.
 
 ---
 
@@ -49,7 +49,7 @@ pip install -r requirements.txt
 
 # Set environment variables
 export GROQ_API_KEY="your_api_key_here"
-export DATABASE_URL="sqlite:///./crm.db"
+export DATABASE_URL="sqlite:///./hcpilot.db"
 
 # Start backend server
 python run.py
@@ -135,7 +135,7 @@ npm run test:coverage
 ## 📦 Project Structure
 
 ```
-SynapseCRM/
+HCPilot/
 ├── backend/
 │   ├── src/
 │   │   ├── agent/          # AI agents (LangGraph)
@@ -163,7 +163,7 @@ SynapseCRM/
 ### Backend (.env)
 ```
 GROQ_API_KEY=your_groq_key
-DATABASE_URL=sqlite:///./crm.db
+DATABASE_URL=sqlite:///./hcpilot.db
 ENVIRONMENT=development
 ```
 

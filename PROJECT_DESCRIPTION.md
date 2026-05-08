@@ -1,4 +1,4 @@
-# CRM AI Agent - Project Description
+# HCPilot - Project Description
 
 ## Overview
 An AI-powered CRM system for pharmaceutical field representatives to manage Healthcare Professional (HCP) interactions through natural language chat, eliminating manual data entry.

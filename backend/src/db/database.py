@@ -4,7 +4,7 @@ from .models import Base
 from ..config import settings
 import os
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./crm.db")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./hcpilot.db")
 
 if "sqlite" in DATABASE_URL:
     engine = create_async_engine(

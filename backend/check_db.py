@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 from datetime import datetime, timezone
 
-DB_PATH = Path(__file__).parent / "crm.db"
+DB_PATH = Path(__file__).parent / "hcpilot.db"
 TIMESTAMP_FILE = Path(__file__).parent / ".last_check_timestamp"
 
 TABLES_WITH_TS = [

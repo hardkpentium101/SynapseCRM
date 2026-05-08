@@ -3,17 +3,17 @@ version: '3.8'
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: crm-postgres
+    container_name: hcpilot-postgres
     environment:
-      POSTGRES_USER: crm_user
-      POSTGRES_PASSWORD: crm_password
-      POSTGRES_DB: crm_db
+      POSTGRES_USER: hcpilot_user
+      POSTGRES_PASSWORD: hcpilot_password
+      POSTGRES_DB: hcpilot_db
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U crm_user -d crm_db"]
+      test: ["CMD-SHELL", "pg_isready -U hcpilot_user -d hcpilot_db"]
       interval: 5s
       timeout: 5s
       retries: 5
