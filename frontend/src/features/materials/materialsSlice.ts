@@ -5,15 +5,11 @@ import { api } from '../../services/api';
 interface MaterialsState {
   items: Material[];
   searchResults: Material[];
-  loading: boolean;
-  error: string | null;
 }
 
 const initialState: MaterialsState = {
   items: [],
   searchResults: [],
-  loading: false,
-  error: null,
 };
 
 export const fetchMaterials = createAsyncThunk(
@@ -44,19 +40,8 @@ const materialsSlice = createSlice({
   reducers: {},
   extraReducers: (builder) => {
     builder
-      .addCase(fetchMaterials.pending, (state) => {
-        state.loading = true;
-      })
       .addCase(fetchMaterials.fulfilled, (state, action: PayloadAction<Material[]>) => {
-        state.loading = false;
         state.items = action.payload;
-      })
-      .addCase(fetchMaterials.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
-      })
-      .addCase(searchMaterials.pending, (state) => {
-        state.searchResults = [];
       })
       .addCase(searchMaterials.fulfilled, (state, action: PayloadAction<Material[]>) => {
         state.searchResults = action.payload;

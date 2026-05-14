@@ -4,7 +4,6 @@ Async Runner - Run async code from sync context
 
 import asyncio
 import threading
-from functools import wraps
 
 _local = threading.local()
 

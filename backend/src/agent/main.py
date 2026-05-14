@@ -10,7 +10,7 @@ from .llm_manager import LLMManager
 from .model_selector import ModelSelector
 from .subagents import IntentClassifierAgent, EntityExtractorAgent, OrchestratorAgent
 from .memory import get_memory, SessionData
-from .schemas import ExtractedEntities
+from .schemas import ExtractedEntities, IntentClassification
 from .langsmith.tracing import emit_graph_node
 
 
@@ -100,7 +100,6 @@ class HCPAgent:
         user_input: str,
         session_id: str,
         user_id: str = "default",
-        include_thinking: bool = False,
         form_data: dict = None,
     ) -> AgentResponse:
         """
@@ -124,25 +123,7 @@ class HCPAgent:
                 )
                 intent = intent_result["intent"]
             except Exception:
-                user_lower = user_input.lower()
-                if "suggest" in user_lower or "recommend" in user_lower or "next step" in user_lower:
-                    intent = "suggest_follow_up"
-                elif "follow" in user_lower or "schedule" in user_lower:
-                    intent = "create_follow_up"
-                elif "edit" in user_lower or "update" in user_lower or "modify" in user_lower or "change" in user_lower:
-                    intent = "update_interaction"
-                elif "meet" in user_lower or "met" in user_lower or "meeting" in user_lower:
-                    intent = "create_interaction"
-                elif ("search" in user_lower or "find" in user_lower or "look for" in user_lower) and (
-                    "material" in user_lower or "brochure" in user_lower or "sample" in user_lower
-                ):
-                    intent = "search_materials"
-                elif "search" in user_lower or "find" in user_lower or "look for" in user_lower:
-                    intent = "search_hcp"
-                elif "material" in user_lower or "brochure" in user_lower:
-                    intent = "search_materials"
-                else:
-                    intent = "unknown"
+                intent = IntentClassification.from_string(user_input).intent
 
             emit_graph_node(
                 "intent_classifier",
@@ -177,11 +158,6 @@ class HCPAgent:
                 for key, value in form_data.items():
                     if value is not None and (key not in entities_dict or not entities_dict.get(key)):
                         entities_dict[key] = value
-
-            regex_entities = self._extract_entities_regex(user_input)
-            for key, value in regex_entities.items():
-                if key not in entities_dict or not entities_dict.get(key):
-                    entities_dict[key] = value
 
             # Step 2.5: Validate and enrich entities
             if intent in ["search_hcp", "create_interaction", "create_follow_up", "update_interaction"]:

@@ -3,15 +3,6 @@ import { configureStore } from '@reduxjs/toolkit'
 import interactionsReducer, { setHCP, addMaterial, updateFormField } from '../interactions/interactionsSlice'
 import followUpsReducer, { addSuggestion } from '../followUps/followUpsSlice'
 import type { HCP, Material, FollowUp } from '../../types'
-import { api } from '../../services/api'
-
-vi.mock('../../services/api', () => ({
-  api: {
-    chat: vi.fn(),
-    getHcp: vi.fn(),
-    getMaterial: vi.fn(),
-  },
-}))
 
 describe('ChatPlaceholder — material and suggestion handling', () => {
   let store: ReturnType<typeof configureStore>

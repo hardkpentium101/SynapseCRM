@@ -3,7 +3,6 @@ LangGraph State - Defines the state passed through the graph
 """
 
 from typing import List, Optional, Dict, Any, TypedDict
-from langchain_core.messages import BaseMessage
 from ..schemas.entities import ExtractedEntities
 
 

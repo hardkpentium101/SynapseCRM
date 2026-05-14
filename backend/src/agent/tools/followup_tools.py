@@ -243,17 +243,15 @@ def _rule_based_fallback(interaction_context: str, hcp_context: str, context: st
             "priority": "medium",
         })
 
-    while len(suggestions) < 3:
-        defaults = [
-            {"type": "call", "description": "Routine check-in call", "due_in_days": 14, "priority": "low"},
-            {"type": "meeting", "description": "Schedule follow-up meeting", "due_in_days": 21, "priority": "low"},
-            {"type": "email", "description": "Send follow-up email with resources", "due_in_days": 5, "priority": "low"},
-        ]
-        for d in defaults:
-            if len(suggestions) >= 3:
-                break
-            if d not in suggestions:
-                suggestions.append(d)
+    defaults = [
+        {"type": "call", "description": "Routine check-in call", "due_in_days": 14, "priority": "low"},
+        {"type": "meeting", "description": "Schedule follow-up meeting", "due_in_days": 21, "priority": "low"},
+        {"type": "email", "description": "Send follow-up email with resources", "due_in_days": 5, "priority": "low"},
+    ]
+    for d in defaults:
+        if len(suggestions) >= 3:
+            break
+        suggestions.append(d)
 
     return suggestions[:3]
 

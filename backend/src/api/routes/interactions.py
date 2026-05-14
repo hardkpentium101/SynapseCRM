@@ -3,7 +3,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from typing import List, Optional
-from datetime import datetime
 
 from src.db.database import get_db
 from src.db.models import Interaction, User, HCP, Material, Sample, InteractionMaterial
@@ -12,8 +11,6 @@ from src.db.schemas import (
     InteractionUpdate,
     InteractionDetailResponse,
     InteractionListResponse,
-    MaterialResponse,
-    SampleCreate,
 )
 from src.api.deps import get_current_user
 import uuid

@@ -31,21 +31,6 @@ class JSONEncodedList(TypeDecorator):
         return []
 
 
-class GUID(TypeDecorator):
-    impl = String(36)
-    cache_ok = True
-
-    def process_bind_param(self, value, dialect):
-        if value is not None:
-            return str(value)
-        return None
-
-    def process_result_value(self, value, dialect):
-        if value is not None:
-            return uuid.UUID(value)
-        return None
-
-
 class User(Base):
     __tablename__ = "users"
 

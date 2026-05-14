@@ -2,8 +2,7 @@
 Interaction Tools - Tools for interaction operations
 """
 
-from typing import Dict, Any, Optional, List
-import json
+from typing import Dict, Any, List
 import logging
 
 from ..tools.registry import ToolRegistry, ToolDefinition

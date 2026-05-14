@@ -25,31 +25,31 @@ except ImportError:
     )
 from langgraph.graph import StateGraph, END
 
-# Build the graph
-graph_builder = StateGraph(AgentState)
 
-# Add nodes
-graph_builder.add_node("intent_classifier", intent_classifier_node)
-graph_builder.add_node("entity_extractor", entity_extractor_node)
-graph_builder.add_node("orchestrator", orchestrator_node)
-graph_builder.add_node("format_response", format_response_node)
+def build_agent_graph() -> StateGraph:
+    """Build the HCP Agent graph - single source of truth"""
+    graph_builder = StateGraph(AgentState)
 
-# Set entry point
-graph_builder.set_entry_point("intent_classifier")
+    graph_builder.add_node("intent_classifier", intent_classifier_node)
+    graph_builder.add_node("entity_extractor", entity_extractor_node)
+    graph_builder.add_node("orchestrator", orchestrator_node)
+    graph_builder.add_node("format_response", format_response_node)
 
-# Add conditional edges
-graph_builder.add_conditional_edges(
-    "intent_classifier",
-    should_continue,
-    {"entity_extractor": "entity_extractor", "orchestrator": "orchestrator"},
-)
+    graph_builder.set_entry_point("intent_classifier")
 
-# Add regular edges
-graph_builder.add_edge("entity_extractor", "orchestrator")
-graph_builder.add_edge("orchestrator", "format_response")
-graph_builder.add_edge("format_response", END)
+    graph_builder.add_conditional_edges(
+        "intent_classifier",
+        should_continue,
+        {"entity_extractor": "entity_extractor", "orchestrator": "orchestrator"},
+    )
 
-# Compile
-graph = graph_builder.compile()
+    graph_builder.add_edge("entity_extractor", "orchestrator")
+    graph_builder.add_edge("orchestrator", "format_response")
+    graph_builder.add_edge("format_response", END)
 
-__all__ = ["graph", "AgentState", "initial_state"]
+    return graph_builder
+
+
+graph = build_agent_graph().compile()
+
+__all__ = ["graph", "build_agent_graph", "AgentState", "initial_state"]

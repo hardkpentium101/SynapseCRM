@@ -1,16 +1,8 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { SplitPane } from './SplitPane'
 
 describe('SplitPane Component', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  afterEach(() => {
-    document.body.innerHTML = ''
-  })
-
   const leftContent = <div data-testid="left-content">Left Panel Content</div>
   const rightContent = <div data-testid="right-content">Right Panel Content</div>
 

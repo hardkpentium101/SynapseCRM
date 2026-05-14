@@ -1,5 +1,4 @@
-import React from 'react'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { Provider } from 'react-redux'
 import { configureStore } from '@reduxjs/toolkit'
@@ -31,10 +30,6 @@ const renderWithProvider = (component: React.ReactElement) => {
 }
 
 describe('ChatPlaceholder Component', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   describe('Header', () => {
     it('should display AI Assistant title', () => {
       renderWithProvider(<ChatPlaceholder />)
@@ -50,8 +45,7 @@ describe('ChatPlaceholder Component', () => {
 
     it('should display "Try saying" section', () => {
       renderWithProvider(<ChatPlaceholder />)
-      const trySaying = screen.queryByText(/Try saying/)
-      expect(trySaying || document.body).toBeInTheDocument()
+      expect(screen.getByText(/Try saying/)).toBeInTheDocument()
     })
   })
 
@@ -83,28 +77,6 @@ describe('ChatPlaceholder Component', () => {
       examples.forEach(regex => {
         expect(screen.getByText(regex)).toBeInTheDocument()
       })
-    })
-  })
-
-  describe('Icon', () => {
-    it('should display icon container', () => {
-      renderWithProvider(<ChatPlaceholder />)
-      const iconContainer = document.querySelector('.h-16') || document.querySelector('[class*="h-"]')
-      expect(iconContainer || document.body).toBeInTheDocument()
-    })
-  })
-
-  describe('Layout', () => {
-    it('should be centered', () => {
-      renderWithProvider(<ChatPlaceholder />)
-      const container = document.querySelector('.flex.items-center.justify-center') || document.body
-      expect(container).toBeInTheDocument()
-    })
-
-    it('should have text alignment', () => {
-      renderWithProvider(<ChatPlaceholder />)
-      const textContainer = document.querySelector('.text-center') || document.body
-      expect(textContainer).toBeInTheDocument()
     })
   })
 

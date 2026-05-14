@@ -95,15 +95,8 @@ def register_hcp_tools(registry: ToolRegistry):
     )
 
 
-def _search_hcp(query: str, limit: int = 5, db_session=None) -> Dict[str, Any]:
+def _search_hcp(query: str, limit: int = 5) -> Dict[str, Any]:
     """Search for HCPs"""
-    from ..memory.conversation_memory import get_memory_context
-
-    # Get HCP data from the memory context or database
-    # This will be connected to the actual database in integration
-    memory = get_memory_context()
-
-    # For now, return a structure that will be filled by the integration
     return {
         "query": query,
         "limit": limit,

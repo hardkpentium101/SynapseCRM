@@ -171,33 +171,6 @@ def traceable(name: str = None, tags: list = None):
     return decorator
 
 
-class LangSmithTracer:
-    """Wrapper for LangSmith tracing (backward compat)."""
-
-    def __init__(self):
-        self.enabled = is_tracing_enabled()
-
-    def trace_node(self, node_name: str, inputs: Dict[str, Any], outputs: Dict[str, Any] = None):
-        emit_graph_node(node_name, inputs, outputs or {})
-
-    def trace_tool_call(self, tool_name: str, arguments: Dict[str, Any], result: Any):
-        emit_tool_call(tool_name, arguments, result)
-
-    def trace_llm_call(self, model: str, prompt: str, response: str):
-        emit_llm_call(model, [{"content": prompt}], response, {}, 0)
-
-
-_langsmith_tracer: Optional["LangSmithTracer"] = None
-
-
-def get_tracer() -> Optional["LangSmithTracer"]:
-    """Get or create LangSmith tracer."""
-    global _langsmith_tracer
-    if _langsmith_tracer is None:
-        _langsmith_tracer = LangSmithTracer()
-    return _langsmith_tracer if _langsmith_tracer.enabled else None
-
-
 def wait_for_all_tracers(timeout: float = 10.0):
     """
     Flush all pending traces to LangSmith.

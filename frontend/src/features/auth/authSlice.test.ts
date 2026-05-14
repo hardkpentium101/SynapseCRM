@@ -34,11 +34,10 @@ describe('authSlice', () => {
   })
 
   describe('login thunk', () => {
-    it('should have loading state when dispatched', () => {
+    it('should have loading state when dispatched', async () => {
       store.dispatch(login({ email: 'test@test.com', password: 'test' }))
       const state = store.getState().auth
-      // Login starts with loading: false, but dispatch should trigger async behavior
-      expect(state).toBeDefined()
+      expect(state.loading).toBe(true)
     })
   })
 

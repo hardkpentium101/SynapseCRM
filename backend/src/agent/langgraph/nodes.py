@@ -3,7 +3,6 @@ LangGraph Nodes - Define nodes for the agent graph
 """
 
 from typing import Dict, Any, Literal
-from langgraph.types import Command
 from ..schemas.entities import ExtractedEntities
 from ..services.agent_factory import get_shared_llm_manager, get_shared_model_selector
 from ..langsmith.tracing import emit_graph_node

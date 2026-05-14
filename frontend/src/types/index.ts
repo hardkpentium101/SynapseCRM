@@ -83,11 +83,6 @@ export interface FollowUp {
   updatedAt: string;
 }
 
-export interface InteractionMaterial {
-  interactionId: string;
-  materialId: string;
-}
-
 export interface AuthTokens {
   accessToken: string;
   refreshToken: string;
@@ -103,13 +98,4 @@ export interface ChatMessage {
   content: string;
 }
 
-export interface ChatResponse {
-  message: string;
-  intent: string;
-  entities: Record<string, unknown>;
-  sessionId: string;
-  success: boolean;
-  error?: string;
-  interaction?: Interaction;
-  aiSuggestions?: Array<{ id?: string; description: string; type?: string; dueInDays?: number; dueDate?: string; priority?: string }>;
-}
+

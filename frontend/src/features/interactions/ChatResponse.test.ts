@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { configureStore } from '@reduxjs/toolkit'
-import interactionsReducer, { setFormData, setHCP, addMaterial } from './interactionsSlice'
+import interactionsReducer, { setHCP, addMaterial, updateFormField } from './interactionsSlice'
 import type { HCP, Material } from '../../types'
 
 vi.mock('../../services/api', () => ({
@@ -83,37 +83,17 @@ describe('Chat Response Form Update', () => {
     })
   })
 
-  describe('setFormData action', () => {
-    it('should merge partial interaction data into formData', () => {
-      const partialData = {
-        topics: 'Oncoboost efficacy discussion',
-        sentiment: 'positive' as const,
-        attendees: ['rajesh'],
-      }
-
-      store.dispatch(setFormData(partialData))
-
+  describe('updateFormField action', () => {
+    it('should update a single field and set dirty flag', () => {
+      store.dispatch(updateFormField({ field: 'topics', value: 'Oncoboost efficacy discussion' }))
       const state = store.getState().interactions
       expect(state.formData.topics).toBe('Oncoboost efficacy discussion')
-      expect(state.formData.sentiment).toBe('positive')
-      expect(state.formData.attendees).toEqual(['rajesh'])
       expect(state.dirty).toBe(true)
-    })
-
-    it('should merge multiple fields at once', () => {
-      store.dispatch(setFormData({
-        type: 'meeting',
-        outcome: 'Follow up next week',
-      }))
-
-      const state = store.getState().interactions
-      expect(state.formData.type).toBe('meeting')
-      expect(state.formData.outcome).toBe('Follow up next week')
     })
   })
 
   describe('full chat response simulation', () => {
-    it('should update form with HCP, materials, and interaction fields', async () => {
+    it('should update form with HCP, materials, and interaction fields via updateFormField', async () => {
       const { api } = await import('../../services/api')
 
       const mockHCP: HCP = {
@@ -151,7 +131,6 @@ describe('Chat Response Form Update', () => {
 
       vi.mocked(api.chat).mockResolvedValueOnce(mockResponse)
 
-      // Simulate the chat response handling (what happens in ChatPlaceholder)
       if (mockResponse.interaction) {
         const interactionData = mockResponse.interaction
 
@@ -167,11 +146,18 @@ describe('Chat Response Form Update', () => {
           }
         }
 
-        const { hcp_id, materials, ...formFields } = interactionData
-        store.dispatch(setFormData({
-          ...formFields,
-          hcpId: interactionData.hcp_id || (interactionData as any).hcpId,
-        }))
+        if (interactionData.type) {
+          store.dispatch(updateFormField({ field: 'type', value: interactionData.type }))
+        }
+        if (interactionData.topics && Array.isArray(interactionData.topics)) {
+          store.dispatch(updateFormField({ field: 'topics', value: interactionData.topics.join(', ') }))
+        }
+        if (interactionData.sentiment) {
+          store.dispatch(updateFormField({ field: 'sentiment', value: interactionData.sentiment }))
+        }
+        if (interactionData.attendees) {
+          store.dispatch(updateFormField({ field: 'attendees', value: interactionData.attendees }))
+        }
       }
 
       const state = store.getState().interactions
@@ -180,7 +166,7 @@ describe('Chat Response Form Update', () => {
       expect(state.formData.hcp?.name).toBe('Dr. Sharma')
       expect(state.formData.materials).toHaveLength(1)
       expect(state.formData.materials?.[0].name).toBe('Neuroplus')
-      expect(state.formData.topics).toEqual(['oncoboost efficacy'])
+      expect(state.formData.topics).toBe('oncoboost efficacy')
       expect(state.formData.sentiment).toBe('positive')
       expect(state.formData.attendees).toEqual(['rajesh'])
     })

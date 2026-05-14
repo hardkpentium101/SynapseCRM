@@ -237,7 +237,6 @@ class BaseAgent(ABC):
     _context_formatters: Dict[str, Dict[str, Any]] = {
         "conversation_history": {
             "mode": "extend",
-            "template": "{0}",
         },
         "entities": {
             "mode": "append",

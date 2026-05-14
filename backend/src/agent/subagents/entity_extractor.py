@@ -3,7 +3,6 @@ Entity Extractor Agent - Extracts structured entities from messages
 """
 
 from typing import Dict, Any
-import json
 from ..base import BaseAgent, AgentConfig, AGENT_CONFIGS
 from ..llm_manager import LLMManager
 from ..model_selector import ModelSelector

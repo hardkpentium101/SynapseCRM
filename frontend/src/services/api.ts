@@ -79,10 +79,6 @@ class ApiService {
     return this.request<HCP>(`/hcps/${id}`, { method: 'PUT', body: JSON.stringify(data) });
   }
 
-  async deleteHcp(id: string): Promise<void> {
-    return this.request<void>(`/hcps/${id}`, { method: 'DELETE' });
-  }
-
   // Interactions
   async getInteractions(filters?: { hcpId?: string; userId?: string }): Promise<Interaction[]> {
     const params = new URLSearchParams();
@@ -126,22 +122,10 @@ class ApiService {
     return result;
   }
 
-  async deleteInteraction(id: string): Promise<void> {
-    return this.request<void>(`/interactions/${id}`, { method: 'DELETE' });
-  }
-
   // Materials
   async getMaterials(search?: string): Promise<Material[]> {
     const params = search ? `?search=${encodeURIComponent(search)}` : '';
     return this.request<Material[]>(`/materials${params}`);
-  }
-
-  async getMaterial(id: string): Promise<Material> {
-    return this.request<Material>(`/materials/${id}`);
-  }
-
-  async createMaterial(data: Partial<Material>): Promise<Material> {
-    return this.request<Material>('/materials', { method: 'POST', body: JSON.stringify(data) });
   }
 
   // Samples
@@ -241,10 +225,6 @@ class ApiService {
       method: 'POST',
       body: JSON.stringify({ message, session_id: sessionId, user_id: userId, form_data: formData }),
     });
-  }
-
-  async getChatHistory(sessionId: string, limit = 20): Promise<{ messages: unknown[]; count: number }> {
-    return this.request<{ messages: unknown[]; count: number }>(`/agent/history/${sessionId}?limit=${limit}`);
   }
 
   async getSessionEntities(sessionId: string): Promise<{ entities: Record<string, unknown> }> {

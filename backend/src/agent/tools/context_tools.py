@@ -91,12 +91,14 @@ def _get_conversation_history(session_id: str, limit: int = 10) -> Dict[str, Any
     }
 
 
-def _get_extracted_entities() -> Dict[str, Any]:
+def _get_extracted_entities(session_id: str = None) -> Dict[str, Any]:
     """Get extracted entities from session"""
     from ..memory.conversation_memory import get_memory
 
+    if not session_id:
+        return {"entities": {}, "is_empty": True}
     memory = get_memory()
-    entities = memory.get_entities()
+    entities = memory.get_entities(session_id)
 
     return {
         "entities": entities.to_context_dict()
@@ -106,12 +108,14 @@ def _get_extracted_entities() -> Dict[str, Any]:
     }
 
 
-def _add_context(key: str, value: str) -> Dict[str, Any]:
+def _add_context(session_id: str, key: str, value: str) -> Dict[str, Any]:
     """Add context to session"""
     from ..memory.conversation_memory import get_memory
 
+    if not session_id:
+        return {"success": False, "error": "No session_id provided"}
     memory = get_memory()
-    memory.set_context(key, value)
+    memory.set_context(session_id, key, value)
 
     return {
         "success": True,
@@ -122,8 +126,9 @@ def _add_context(key: str, value: str) -> Dict[str, Any]:
 
 def _clear_session() -> Dict[str, Any]:
     """Clear all session data"""
-    from ..memory.conversation_memory import clear_memory
+    from ..memory.conversation_memory import get_memory
 
-    clear_memory()
+    memory = get_memory()
+    memory.clear("")
 
     return {"success": True, "message": "Session cleared successfully"}

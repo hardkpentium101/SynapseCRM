@@ -42,10 +42,6 @@ const chatSlice = createSlice({
     setSessionId(state, action: PayloadAction<string>) {
       state.sessionId = action.payload;
     },
-    clearMessages(state) {
-      state.messages = [];
-      state.sessionId = null;
-    },
     addFollowUpAction(state, action: PayloadAction<{ description: string; status: 'approved' | 'declined' }>) {
       state.messages.push({
         role: 'assistant',
@@ -62,7 +58,6 @@ export const {
   addAssistantMessage,
   setLoading,
   setSessionId,
-  clearMessages,
   addFollowUpAction,
 } = chatSlice.actions;
 

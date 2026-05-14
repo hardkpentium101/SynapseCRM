@@ -5,10 +5,9 @@ Supports: Groq (default), OpenRouter, OpenAI, Anthropic
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import List, Dict, Any, Optional, Union
+from typing import List, Dict, Any, Optional
 from enum import Enum
 import json
-import os
 import time
 
 from groq import Groq

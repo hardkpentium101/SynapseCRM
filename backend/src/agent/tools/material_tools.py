@@ -2,7 +2,7 @@
 Material Tools - Tools for searching and recommending materials
 """
 
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, List
 from ..tools.registry import ToolRegistry, ToolDefinition
 
 

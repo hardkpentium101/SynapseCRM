@@ -13,12 +13,12 @@ describe('api service', () => {
   })
 
   describe('setToken', () => {
-    it('should set and clear token', () => {
+    it('should include Authorization header after setting token', async () => {
       api.setToken('test-token')
-      expect(api).toBeDefined()
-      
-      api.setToken(null)
-      expect(api).toBeDefined()
+      mockFetch.mockResolvedValueOnce({ ok: true, json: async () => [] })
+      await api.getHcps()
+      const headers = mockFetch.mock.calls[0][1]?.headers as Record<string, string>
+      expect(headers?.Authorization).toContain('test-token')
     })
   })
 

@@ -58,7 +58,7 @@ export function ChatPlaceholder() {
 
         if (d.hcpId || d.hcp_id) {
           const hcpObj: HCP = {
-            id: d.hcpId || d.hcp_id || '',
+            id: d.hcpId || d.hcp_id,
             name: d.hcpName || d.hcp_name || '',
             specialty: d.hcpSpecialty || d.hcp_specialty || '',
             institution: d.hcpInstitution || d.hcp_institution || '',
@@ -68,7 +68,7 @@ export function ChatPlaceholder() {
         }
 
         if (d.dateTime || d.date_time) {
-          const val = d.dateTime || d.date_time || '';
+          const val = d.dateTime || d.date_time;
           dispatch(updateFormField({ field: 'dateTime', value: val }));
           entitiesSet.push({ field: 'dateTime', value: val });
         }
@@ -80,7 +80,7 @@ export function ChatPlaceholder() {
 
         if (d.topics) {
           const val = Array.isArray(d.topics)
-            ? d.topics.filter(Boolean).join(', ')
+            ? d.topics.join(', ')
             : typeof d.topics === 'string'
               ? d.topics
               : '';
@@ -90,7 +90,7 @@ export function ChatPlaceholder() {
           }
         }
 
-        if (d.attendees && Array.isArray(d.attendees)) {
+        if (Array.isArray(d.attendees)) {
           dispatch(updateFormField({ field: 'attendees', value: d.attendees }));
           entitiesSet.push({ field: 'attendees', value: d.attendees.join(', ') });
         }
@@ -110,9 +110,9 @@ export function ChatPlaceholder() {
           entitiesSet.push({ field: 'notes', value: d.notes });
         }
 
-        if (d.materials && Array.isArray(d.materials)) {
+        if (Array.isArray(d.materials)) {
           for (const mat of d.materials) {
-            if (mat && typeof mat === 'string' && mat.trim()) {
+            if (typeof mat === 'string' && mat.trim()) {
               const material: Material = {
                 id: `mat-${crypto.randomUUID()}`,
                 name: mat,
@@ -121,7 +121,7 @@ export function ChatPlaceholder() {
               };
               dispatch(addMaterial(material));
               materialsAdded.push(mat);
-            } else if (mat && typeof mat === 'object' && mat.id) {
+            } else if (typeof mat === 'object' && mat.id) {
               const material: Material = {
                 id: mat.id,
                 name: mat.name,
@@ -136,9 +136,9 @@ export function ChatPlaceholder() {
         }
       }
 
-      if (response.aiSuggestions && Array.isArray(response.aiSuggestions)) {
+      if (Array.isArray(response.aiSuggestions)) {
         for (const suggestion of response.aiSuggestions) {
-          if (suggestion && suggestion.description) {
+          if (suggestion?.description) {
             const dueDate = suggestion.dueDate
               ? suggestion.dueDate
               : suggestion.dueInDays

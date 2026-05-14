@@ -145,6 +145,3 @@ class TestHCPServiceSearch:
         result = HCPService.search_hcp("NonExistentXYZ123")
         assert isinstance(result, list)
 
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])

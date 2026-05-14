@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Provider } from 'react-redux'
@@ -10,7 +10,6 @@ import interactionsReducer from './interactionsSlice'
 import materialsReducer from '../materials/materialsSlice'
 import samplesReducer from '../samples/samplesSlice'
 import followUpsReducer from '../followUps/followUpsSlice'
-import uiReducer from '../ui/uiSlice'
 import { setHCP, addMaterial } from './interactionsSlice'
 import type { HCP, Material } from '../../types'
 
@@ -40,7 +39,6 @@ const createStore = (preloadedState = {}) => configureStore({
     materials: materialsReducer,
     samples: samplesReducer,
     followUps: followUpsReducer,
-    ui: uiReducer,
   },
   preloadedState: {
     auth: {
@@ -49,30 +47,20 @@ const createStore = (preloadedState = {}) => configureStore({
       loading: false,
       error: null,
     },
-    hcps: { items: [mockHCP], searchResults: [], activeId: null, activeHCP: null, loading: false, error: null },
+    hcps: { searchResults: [mockHCP] },
     interactions: {
-      items: [],
-      activeId: null,
-      activeInteraction: null,
       formData: { type: 'meeting', dateTime: '', attendees: [], topics: '', sentiment: undefined, outcome: '' },
+      sessionId: null,
       dirty: false,
-      loading: false,
-      saving: false,
-      error: null,
     },
-    materials: { items: [mockMaterial], loading: false, error: null },
-    samples: { items: [], searchResults: [], loading: false, error: null },
-    followUps: { items: [], suggestions: [], loading: false, error: null },
-    ui: { splitPosition: 60, leftPanelMode: 'create', notifications: [], sidebarCollapsed: false },
+    materials: { items: [mockMaterial], searchResults: [] },
+    samples: { searchResults: [] },
+    followUps: { suggestions: [] },
     ...preloadedState,
   },
 })
 
 describe('InteractionForm UI Functionality', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   describe('HCP Selection', () => {
     it('should render HCP search input', () => {
       const store = createStore()

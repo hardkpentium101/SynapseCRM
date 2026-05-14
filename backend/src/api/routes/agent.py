@@ -2,8 +2,7 @@
 Agent API Routes - FastAPI endpoints for the agent
 """
 
-from fastapi import APIRouter, HTTPException
-from fastapi.responses import PlainTextResponse
+from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import uuid
@@ -11,12 +10,6 @@ import uuid
 from ...agent.main import HCPAgent, get_hcp_agent
 from ...agent.memory import get_memory
 from ...agent.langsmith import setup_langsmith
-from ...agent.langgraph import (
-    get_graph_definition,
-    get_flow_diagram_mermaid,
-    get_flow_diagram_ascii,
-)
-from ...config import settings
 
 router = APIRouter(prefix="/api/agent", tags=["agent"])
 
@@ -42,11 +35,6 @@ class ChatResponse(BaseModel):
 class HistoryResponse(BaseModel):
     messages: List[Dict[str, Any]]
     count: int
-
-
-class SessionCreateResponse(BaseModel):
-    session_id: str
-    user_id: str
 
 
 def get_agent() -> HCPAgent:
@@ -170,24 +158,6 @@ async def get_history(session_id: str, limit: int = 20):
     return HistoryResponse(messages=history, count=len(history))
 
 
-@router.post("/session", response_model=SessionCreateResponse)
-async def create_session(user_id: str = "default"):
-    """Create a new session"""
-    memory = get_memory()
-    session = memory.create_session(user_id)
-
-    return SessionCreateResponse(session_id=session.session_id, user_id=session.user_id)
-
-
-@router.delete("/session/{session_id}")
-async def clear_session(session_id: str):
-    """Clear a session"""
-    memory = get_memory()
-    memory.clear(session_id)
-
-    return {"success": True, "message": "Session cleared"}
-
-
 @router.get("/session/{session_id}/entities")
 async def get_session_entities(session_id: str):
     """Get session entity data"""
@@ -200,48 +170,3 @@ async def get_session_entities(session_id: str):
     return {"entities": extracted.model_dump() if extracted else {}}
 
 
-@router.get("/health")
-async def health_check():
-    """Check agent health"""
-    try:
-        agent = get_agent()
-        models = agent.llm.list_models()
-        return {
-            "status": "healthy",
-            "provider": settings.LLM_PROVIDER,
-            "models_available": len(models),
-        }
-    except Exception as e:
-        return {"status": "unhealthy", "error": str(e)}
-
-
-@router.get("/models")
-async def list_models():
-    """List available models"""
-    try:
-        agent = get_agent()
-        models = agent.llm.list_models()
-        return {
-            "models": [{"id": m.id, "provider": m.provider} for m in models],
-            "count": len(models),
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/graph")
-async def get_graph():
-    """Get the agent graph definition for visualization"""
-    return get_graph_definition()
-
-
-@router.get("/graph/mermaid", response_class=PlainTextResponse)
-async def get_graph_mermaid():
-    """Get the agent graph as Mermaid diagram"""
-    return get_flow_diagram_mermaid()
-
-
-@router.get("/graph/ascii")
-async def get_graph_ascii():
-    """Get the agent graph as ASCII diagram"""
-    return {"diagram": get_flow_diagram_ascii()}

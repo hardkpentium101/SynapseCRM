@@ -5,7 +5,6 @@ Intent Schemas - Defines possible user intents
 from enum import Enum
 from typing import Optional, List
 from pydantic import BaseModel
-import re
 
 
 class Intent(str, Enum):
@@ -52,7 +51,6 @@ class IntentClassification(BaseModel):
                 "addhcp",
                 "register_hcp",
                 "registerhcp",
-                "new hcp",
                 "new hcp",
                 "add new",
                 "register new",

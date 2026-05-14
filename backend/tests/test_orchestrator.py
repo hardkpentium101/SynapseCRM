@@ -173,6 +173,3 @@ class TestEntityExtractionFromText:
         assert result.get("hcp_institution") == "Johns Hopkins"
         assert result.get("interaction_type") == "meeting"
 
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])

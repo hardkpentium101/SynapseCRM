@@ -4,9 +4,8 @@ Model Selector - Auto-selects best model based on task type
 
 from typing import Dict, List, Optional
 from dataclasses import dataclass
-import time
 
-from .llm_manager import LLMManager, Model, OPENROUTER_CHAT_MODELS, OPENROUTER_TOOL_CALL_MODELS
+from .llm_manager import LLMManager, Model, OPENROUTER_CHAT_MODELS
 
 
 @dataclass
@@ -94,9 +93,6 @@ class ModelSelector:
             return True
         # Check OpenRouter chat models
         if model_id in OPENROUTER_CHAT_MODELS:
-            return True
-        # For OpenRouter models with provider/model format, assume chat capable
-        if "/" in model_id and ":" not in model_id:
             return True
         return True
 

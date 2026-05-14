@@ -79,50 +79,6 @@ class OrchestratorAgent(BaseAgent):
         return response.content or "Processing complete.", tool_results
 
     def process(self, user_input: str, context: Dict[str, Any] = None) -> str:
-        """Process with tool calling"""
-        messages = self._build_messages(user_input, context)
-        max_iterations = 5
-        iteration = 0
-
-        while iteration < max_iterations:
-            iteration += 1
-            response = self.complete(messages, use_tools=True)
-
-            if not response.tool_calls:
-                return response.content or "I'm not sure how to help with that."
-
-            for tool_call in response.tool_calls:
-                messages.append(
-                    {
-                        "role": "assistant",
-                        "content": None,
-                        "tool_calls": [
-                            {
-                                "id": tool_call.id,
-                                "type": "function",
-                                "function": {
-                                    "name": tool_call.name,
-                                    "arguments": json.dumps(tool_call.arguments)
-                                    if isinstance(tool_call.arguments, dict)
-                                    else tool_call.arguments,
-                                },
-                            }
-                        ],
-                    }
-                )
-
-                tool_result = self.tool_registry.execute(
-                    tool_call.name, tool_call.arguments
-                )
-
-                result_content = json.dumps(tool_result.to_dict())
-                messages.append(
-                    {
-                        "role": "tool",
-                        "tool_call_id": tool_call.id,
-                        "name": tool_call.name,
-                        "content": result_content,
-                    }
-                )
-
-        return response.content or "Processing complete."
+        """Process with tool calling (delegates to process_with_tools)"""
+        message, _ = self.process_with_tools(user_input, context)
+        return message
